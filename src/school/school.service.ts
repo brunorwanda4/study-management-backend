@@ -35,23 +35,34 @@ export class SchoolService {
     }
   }
 
-  async findAll(schoolType?: schoolTypeDto, schoolMembers?: SchoolMembersDto) {
+  async findAll(schoolType?: schoolTypeDto, schoolMembers?: SchoolMembersDto, creatorId?: string) {
     try {
-      const schools = (schoolType && schoolMembers)
-        ? await this.dbService.school.findMany({ where: { schoolType, schoolMembers } })
-        : schoolMembers ? await this.dbService.school.findMany({ where: { schoolMembers } })
-          : schoolType ? await this.dbService.school.findMany({ where: { schoolType } })
-            : await this.dbService.school.findMany();
+      const where: any = {};
 
-      const safeSchool = schools.map(({ code, ...rest }) => rest)
-      return safeSchool
+      if (schoolType) {
+        where.schoolType = schoolType;
+      }
+
+      if (schoolMembers) {
+        where.schoolMembers = schoolMembers;
+      }
+
+      if (creatorId) {
+        where.creatorId = creatorId;
+      }
+
+      const schools = await this.dbService.school.findMany({ where });
+
+      const safeSchool = schools.map(({ code, ...rest }) => rest);
+      return safeSchool;
     } catch (error) {
       throw new NotFoundException({
-        message: 'Something went wrong while retrieving school',
+        message: 'Something went wrong while retrieving schools',
         error,
       });
     }
   }
+
 
   async findOne(id: string, username?: string, code?: string) {
     if (!id && !code && !username) {

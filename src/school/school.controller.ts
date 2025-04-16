@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { SchoolService } from './school.service';
-import { CreateSchoolDto, createSchoolSchema } from './dto/school.dto';
+import { CreateSchoolDto, createSchoolSchema, SchoolMembersDto, schoolTypeDto } from './dto/school.dto';
 import { ZodValidationPipe } from 'src/common/pipes/zod-validation.pipe';
 
 @Controller('school')
@@ -13,8 +13,12 @@ export class SchoolController {
   }
 
   @Get()
-  findAll() {
-    return this.schoolService.findAll();
+ async findAll(
+    @Query('schoolType') schoolType?: schoolTypeDto,
+    @Query('schoolMembers') schoolMembers?: SchoolMembersDto,
+    @Query('creator') creatorId ?: string
+  ) {
+    return await this.schoolService.findAll(schoolType, schoolMembers, creatorId);
   }
 
   @Get(':id')
