@@ -14,23 +14,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String    @id @default(auto()) @map("_id") @db.ObjectId
-  email     String    @unique
-  name      String
-  username  String    @unique
-  password  String?
-  role      UserRole?
-  image     String?
-  phone     String?
-  gender    Gender?
-  age       Age?
-  address   Address?
-  bio       String?
-  createAt  DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-}
-
 enum UserRole {
   STUDENT
   TEACHER
@@ -52,7 +35,7 @@ type Age {
 
 type Address {
   country      String
-  Province     String?
+  province     String?
   district     String?
   sector       String?
   cell         String?
@@ -60,4 +43,86 @@ type Address {
   state        String?
   postalCode   String?
   googleMapUrl String?
+}
+
+type Contact {
+  phoneNumbers String[]
+  emails       String[]
+}
+
+type SocialMedial {
+  name String
+  url  String
+}
+
+model User {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  email     String    @unique
+  name      String
+  username  String    @unique
+  password  String?
+  role      UserRole?
+  image     String?
+  phone     String?
+  gender    Gender?
+  age       Age?
+  address   Address?
+  bio       String?
+  createAt  DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// school module
+
+enum SchoolType {
+  PUBLIC
+  PRIVATE
+  INTERNATIONAL
+}
+
+enum SchoolMembers {
+  BOYS
+  GIRLS
+  MIXED
+}
+
+enum AttendanceSystem {
+  ONLINE
+  MANUAL
+}
+
+model School {
+  id                    String            @id @default(auto()) @map("_id") @db.ObjectId
+  creatorId             String            @db.ObjectId
+  // basic information
+  username              String
+  logo                  String?
+  name                  String
+  code                  String
+  description           String?
+  schoolType            SchoolType
+  curriculum            String[]
+  educationLevel        String[]
+  schoolMembers         SchoolMembers
+  accreditationNumber   Int?
+  affiliation           String?
+  // location
+  address               Address?
+  contact               Contact?
+  website               String?
+  socialMedia           SocialMedial[]
+  // students
+  studentCapacity       Int?
+  uniformRequired       Boolean?
+  attendanceSystem      AttendanceSystem?
+  scholarshipAvailable  Boolean?
+  // facilities
+  classrooms            Int?
+  library               Boolean?
+  labs                  String[]
+  sportsExtracurricular String[]
+  onlineClasses         Boolean?
+  // meta data
+  createAt              DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 }
