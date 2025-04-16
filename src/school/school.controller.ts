@@ -1,14 +1,14 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
 import { SchoolService } from './school.service';
-import { CreateSchoolDto } from './dto/school.dto';
-import { UpdateSchoolDto } from './dto/update-school.dto';
+import { CreateSchoolDto, createSchoolSchema } from './dto/school.dto';
+import { ZodValidationPipe } from 'src/common/pipes/zod-validation.pipe';
 
 @Controller('school')
 export class SchoolController {
   constructor(private readonly schoolService: SchoolService) {}
 
   @Post()
-  create(@Body() createSchoolDto: CreateSchoolDto) {
+  create(@Body(new ZodValidationPipe(createSchoolSchema)) createSchoolDto: CreateSchoolDto) {
     return this.schoolService.create(createSchoolDto);
   }
 
@@ -19,16 +19,16 @@ export class SchoolController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.schoolService.findOne(+id);
+    return this.schoolService.findOne(id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateSchoolDto: UpdateSchoolDto) {
-    return this.schoolService.update(+id, updateSchoolDto);
+  update(@Param('id') id: string, @Body() updateSchoolDto: unknown) {
+    return this.schoolService.update(id, updateSchoolDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.schoolService.remove(+id);
+    return this.schoolService.remove(id);
   }
 }

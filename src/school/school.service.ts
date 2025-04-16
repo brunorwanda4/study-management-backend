@@ -1,26 +1,85 @@
-import { Injectable } from '@nestjs/common';
-import { CreateSchoolDto } from './dto/school.dto';
-import { UpdateSchoolDto } from './dto/update-school.dto';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { CreateSchoolDto, createSchoolSchema, schoolTypeDto, SchoolMembersDto } from './dto/school.dto';
+import { DbService } from 'src/db/db.service';
+import { generateCode, generateUsername } from 'src/common/utils/characters.util';
 
 @Injectable()
 export class SchoolService {
-  create(createSchoolDto: CreateSchoolDto) {
-    return 'This action adds a new school';
+  constructor(private readonly dbService: DbService,) { }
+
+  async create(createSchoolDto: CreateSchoolDto,) {
+    const validation = createSchoolSchema.safeParse(createSchoolDto);
+    if (!validation.success) {
+      throw new BadRequestException('Invalid school data provided');
+    }
+    const { name, creatorId, ...rest } = validation.data
+    try {
+      const creator = await this.dbService.user.findUnique({ where: { id: creatorId } });
+      if (!creator || (creator.role !== "SCHOOLSTAFF" && creator.role !== "ADMIN")) {
+        throw new BadRequestException('you can not create school')
+      }
+      return await this.dbService.school.create({
+        data: {
+          name,
+          username: generateUsername(name),
+          code: generateCode(),
+          creatorId,
+          ...rest
+        }
+      })
+    } catch (error) {
+      throw new BadRequestException({
+        message: 'Something went wrong while retrieving school',
+        error,
+      });
+    }
   }
 
-  findAll() {
-    return `This action returns all school`;
+  async findAll(schoolType?: schoolTypeDto, schoolMembers?: SchoolMembersDto) {
+    try {
+      const schools = (schoolType && schoolMembers)
+        ? await this.dbService.school.findMany({ where: { schoolType, schoolMembers } })
+        : schoolMembers ? await this.dbService.school.findMany({ where: { schoolMembers } })
+          : schoolType ? await this.dbService.school.findMany({ where: { schoolType } })
+            : await this.dbService.school.findMany();
+
+      const safeSchool = schools.map(({ code, ...rest }) => rest)
+      return safeSchool
+    } catch (error) {
+      throw new NotFoundException({
+        message: 'Something went wrong while retrieving school',
+        error,
+      });
+    }
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} school`;
+  async findOne(id: string, username?: string, code?: string) {
+    if (!id && !code && !username) {
+      throw new BadRequestException('You must provide id, code or username to find a school');
+    }
+    const where = id ? { id } : code ? { code } : { username };
+    try {
+      const school = await this.dbService.school.findUnique({ where });
+
+      if (!school) {
+        const identifier = id || code || username;
+        throw new NotFoundException(`User not found with identifier: ${identifier}`);
+      }
+
+      return school;
+    } catch (error) {
+      throw new NotFoundException({
+        message: 'Something went wrong while retrieving school',
+        error,
+      });
+    }
   }
 
-  update(id: number, updateSchoolDto: UpdateSchoolDto) {
+  update(id: string, updateSchoolDto: unknown) {
     return `This action updates a #${id} school`;
   }
 
-  remove(id: number) {
+  remove(id: string) {
     return `This action removes a #${id} school`;
   }
 }
