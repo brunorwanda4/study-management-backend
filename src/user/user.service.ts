@@ -4,10 +4,11 @@ import { DbService } from 'src/db/db.service';
 import { hashPassword } from 'src/common/utils/hash.util';
 import { generateUsername } from 'src/common/utils/characters.util';
 import { Prisma } from '@prisma/client';
+import { UploadService } from 'src/upload/upload.service';
 
 @Injectable()
 export class UserService {
-  constructor(private readonly dbService: DbService) { }
+  constructor(private readonly dbService: DbService, private readonly uploadService: UploadService,) { }
 
   async create(createUserDto: CreateUserDto) {
     const validation = CreateUserSchema.safeParse(createUserDto);
@@ -96,25 +97,44 @@ export class UserService {
     if (!validation.success) {
       throw new BadRequestException('Invalid user update data');
     }
-
-    const { email, username, password, ...rest } = validation.data;
-
+  
+    const { email, username, password, image, ...rest } = validation.data;
+  
     try {
+      const user = await this.dbService.user.findUnique({ where: { id } });
+      if (!user) throw new NotFoundException('User not found');
+  
       const [emailExists, usernameExists] = await Promise.all([
         email ? this.dbService.user.findUnique({ where: { email } }) : null,
         username ? this.dbService.user.findUnique({ where: { username } }) : null,
       ]);
-
+  
       if (emailExists && emailExists.id !== id) {
         throw new BadRequestException(`Email ${email} is already in use`);
       }
-
+  
       if (usernameExists && usernameExists.id !== id) {
         throw new BadRequestException(`Username ${username} is already in use`);
       }
-
+  
       const hashedPassword = password ? await hashPassword(password) : undefined;
-
+  
+      let imageUrl = user.image;
+  
+      if (image && typeof image === 'string' && image.startsWith('data:image')) {
+        // Delete old image if it exists
+        if (user.image) {
+          const oldImagePublicId = this.extractCloudinaryPublicId(user.image);
+          if (oldImagePublicId) {
+            await this.uploadService.deleteImage(oldImagePublicId);
+          }
+        }
+  
+        // Upload new image
+        const uploaded = await this.uploadService.uploadBase64Image(image, 'avatars');
+        imageUrl = uploaded.secure_url;
+      }
+  
       return await this.dbService.user.update({
         where: { id },
         data: {
@@ -122,14 +142,27 @@ export class UserService {
           email,
           username,
           password: hashedPassword,
+          image: imageUrl,
         },
       });
     } catch (error) {
       if (error.code === 'P2025') {
         throw new NotFoundException('User not found');
       }
-      throw new InternalServerErrorException('Failed to update user', error?.message);
+      throw new InternalServerErrorException(`Failed to update user error is : ${error}`, error?.message);
     }
+  }
+  
+
+  private extractCloudinaryPublicId(imageUrl?: string | null): string | null {
+    if (!imageUrl || !imageUrl.includes('cloudinary')) return null;
+
+    const parts = imageUrl.split('/');
+    const filename = parts[parts.length - 1]; 
+    const publicId = filename.split('.')[0]; 
+    const folder = parts[parts.length - 2];  
+
+    return `${folder}/${publicId}`;
   }
 
   async remove(id: string) {
@@ -144,3 +177,4 @@ export class UserService {
     }
   }
 }
+
