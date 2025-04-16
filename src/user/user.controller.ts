@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseInterceptors, Request, UsePipes, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseInterceptors, Request, UsePipes, UseGuards, Headers } from '@nestjs/common';
 import { UserService } from './user.service';
 import { AuthUserDto, CreateUserDto, CreateUserSchema, UpdateUserDto, UpdateUserSchema, UserRoleDto } from './dto/user.dto';
 import { ZodValidationPipe } from 'src/common/pipes/zod-validation.pipe';
@@ -28,17 +28,16 @@ export class UserController {
 
   @Patch(':id')
   @UseGuards(PassportJswAuthGuard)
-  @UsePipes(new ZodValidationPipe(UpdateUserSchema))
   @UseInterceptors(FileInterceptor('image'))
   async update(
     @Request() request: { user: AuthUserDto },
     @Param('id') id: string,
-    @Body() updateUserDto: UpdateUserDto,
+    @Body(new ZodValidationPipe(UpdateUserSchema)) updateUserDto: UpdateUserDto,
+    @Headers('role') role: string
   ) {
-    console.log(request)
-    const user = await this.userService.update(id, updateUserDto,request.user);
-    const { password: _, ...safeUser } = user;
-    return safeUser;
+
+    return await this.userService.update(id, updateUserDto, request.user, role);
+
   }
 
   @Delete(':id')

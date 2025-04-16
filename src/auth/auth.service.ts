@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { AuthUserDto, LoginUserDto, LoginUserSchema, RegisterUserDto, CreateUserSchema, CreateUserDto } from 'src/user/dto/user.dto';
 import { verifyPassword } from 'src/common/utils/hash.util';
 import { JwtService } from '@nestjs/jwt';
@@ -8,6 +8,7 @@ import { User } from '@prisma/client';
 @Injectable()
 export class AuthService {
   constructor(
+    @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
   ) { }
