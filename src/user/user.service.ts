@@ -1,11 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
-import { CreateUserDto, CreateUserSchema, UpdateUserDto, UpdateUserSchema, UserRoleDto } from './dto/user.dto';
+import { AuthUserDto, CreateUserDto, CreateUserSchema, UpdateUserDto, UpdateUserSchema, UserRoleDto } from './dto/user.dto';
 import { DbService } from 'src/db/db.service';
 import { hashPassword } from 'src/common/utils/hash.util';
 import { generateUsername } from 'src/common/utils/characters.util';
 import { Prisma } from '@prisma/client';
 import { UploadService } from 'src/upload/upload.service';
-
+import { HttpException } from '@nestjs/common';
 @Injectable()
 export class UserService {
   constructor(private readonly dbService: DbService, private readonly uploadService: UploadService,) { }
@@ -19,6 +19,14 @@ export class UserService {
     const { email, name, password } = validation.data;
 
     try {
+      const user = await this.dbService.user.findUnique({
+        where: { email },
+      });
+
+      if (user) {
+        throw new BadRequestException(`Email ${email} is already in use`);
+      }
+
       const hashedPassword = password
         ? await hashPassword(password)
         : undefined;
@@ -41,13 +49,20 @@ export class UserService {
         const target = Array.isArray(targetMeta)
           ? targetMeta.join(', ')
           : targetMeta ?? 'field';
-        throw new BadRequestException(` ${target === "User_email_key" ? `Email ${email} is already in use ` : `A user with this ${target} already exists.`}`);
+        throw new BadRequestException(
+          target === 'User_email_key'
+            ? `Email ${email} is already in use`
+            : `A user with this ${target} already exists.`
+        );
+      }
+
+      if (error instanceof HttpException) {
+        throw error;
       }
 
       console.error('Create User Unexpected Error:', error);
       throw new InternalServerErrorException('Failed to create user');
     }
-
   }
 
   async findAll(role?: UserRoleDto) {
@@ -80,7 +95,7 @@ export class UserService {
 
       if (!user) {
         const identifier = id || email || username;
-        throw new NotFoundException(`User not found with identifier: "${identifier}"`);
+        throw new NotFoundException(`User not found with identifier: ${identifier}`);
       }
 
       return user;
@@ -92,35 +107,36 @@ export class UserService {
     }
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto) {
+  async update(id: string, updateUserDto: UpdateUserDto, request: AuthUserDto) {
+    if (request.id !== id && request.role === "ADMIN") throw new BadRequestException("You are not allowed to update other account")
     const validation = UpdateUserSchema.safeParse(updateUserDto);
     if (!validation.success) {
       throw new BadRequestException('Invalid user update data');
     }
-  
+
     const { email, username, password, image, ...rest } = validation.data;
-  
+
     try {
       const user = await this.dbService.user.findUnique({ where: { id } });
       if (!user) throw new NotFoundException('User not found');
-  
+
       const [emailExists, usernameExists] = await Promise.all([
         email ? this.dbService.user.findUnique({ where: { email } }) : null,
         username ? this.dbService.user.findUnique({ where: { username } }) : null,
       ]);
-  
+
       if (emailExists && emailExists.id !== id) {
         throw new BadRequestException(`Email ${email} is already in use`);
       }
-  
+
       if (usernameExists && usernameExists.id !== id) {
         throw new BadRequestException(`Username ${username} is already in use`);
       }
-  
+
       const hashedPassword = password ? await hashPassword(password) : undefined;
-  
+
       let imageUrl = user.image;
-  
+
       if (image && typeof image === 'string' && image.startsWith('data:image')) {
         // Delete old image if it exists
         if (user.image) {
@@ -129,12 +145,12 @@ export class UserService {
             await this.uploadService.deleteImage(oldImagePublicId);
           }
         }
-  
+
         // Upload new image
         const uploaded = await this.uploadService.uploadBase64Image(image, 'avatars');
         imageUrl = uploaded.secure_url;
       }
-  
+
       return await this.dbService.user.update({
         where: { id },
         data: {
@@ -152,15 +168,15 @@ export class UserService {
       throw new InternalServerErrorException(`Failed to update user error is : ${error}`, error?.message);
     }
   }
-  
+
 
   private extractCloudinaryPublicId(imageUrl?: string | null): string | null {
     if (!imageUrl || !imageUrl.includes('cloudinary')) return null;
 
     const parts = imageUrl.split('/');
-    const filename = parts[parts.length - 1]; 
-    const publicId = filename.split('.')[0]; 
-    const folder = parts[parts.length - 2];  
+    const filename = parts[parts.length - 1];
+    const publicId = filename.split('.')[0];
+    const folder = parts[parts.length - 2];
 
     return `${folder}/${publicId}`;
   }

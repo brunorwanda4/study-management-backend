@@ -14,13 +14,16 @@ export class AuthService {
 
   async authenticate(input: LoginUserDto): Promise<AuthUserDto> {
     const user = await this.validateUser(input);
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) throw new UnauthorizedException('Invalid credentials 1');
     return this.signIn(user);
   }
 
   async validateUser(input: LoginUserDto): Promise<User | null> {
     const validation = LoginUserSchema.safeParse(input);
-    if (!validation.success) return null;
+    if (!validation.success) {
+      console.log( "Login data:" ,input)
+      return null
+    };
 
     const { email, password } = validation.data;
     const user = await this.userService.findOne(undefined, email);
