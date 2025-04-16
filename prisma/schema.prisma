@@ -70,6 +70,11 @@ model User {
   bio       String?
   createAt  DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  SchoolStaff SchoolStaff[]
+  Class       Class[]
+  Teacher     Teacher[]
+  Student     Student[]
 }
 
 // school module
@@ -125,4 +130,82 @@ model School {
   // meta data
   createAt              DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
+
+  SchoolStaff SchoolStaff[]
+  Class       Class[]
+  Teacher     Teacher[]
+
+  Student Student[]
+}
+
+// school member
+
+enum schoolStaffRole {
+  DIRECTOR
+  DOSE
+}
+
+model SchoolStaff {
+  id       String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId   String        @db.ObjectId
+  schoolId String        @db.ObjectId
+  role     SchoolMembers
+
+  createAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// class
+enum ClassType {
+  SCHOOLCLASS
+  PRIVET
+  PUBLIC
+}
+
+model Class {
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  schoolId  String?    @db.ObjectId
+  creatorId String?    @db.ObjectId
+  code      String
+  name      String
+  username  String
+  image     String?
+  classType ClassType? @default(PRIVET)
+
+  createAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school  School?   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user    User?     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  Student Student[]
+}
+
+// school member
+model Teacher {
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  schoolId String? @db.ObjectId
+  userId   String  @db.ObjectId
+
+  createAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Student {
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId   String  @db.ObjectId
+  classId  String? @db.ObjectId
+  schoolId String? @db.ObjectId
+
+  createAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  class  Class?  @relation(fields: [classId], references: [id])
+  school School? @relation(fields: [schoolId], references: [id])
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
