@@ -1,6 +1,6 @@
 import * as argon2 from "argon2"; 
 
-const SECRET_KEY = process.env.SECRETE_KEY || "brunorwanda4";
+const SECRET_KEY = process.env.SECRETE_KEY;
 
 export const hashPassword = async (password: string): Promise<string> => {
   const saltedPassword = password + SECRET_KEY;

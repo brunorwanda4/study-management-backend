@@ -31,8 +31,8 @@ export type LoginUserDto = z.infer<typeof LoginUserSchema>;
 export const RegisterUserSchema = z.object({
     name: z.string(),
     email: z.string().email(),
-    password: z.string().min(1, {
-        message: "Password is required"
+    password: z.string().min(8, {
+        message: "Minimum 8 characters"
     })
 })
 

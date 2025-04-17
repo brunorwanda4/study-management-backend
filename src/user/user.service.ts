@@ -4,7 +4,7 @@ import { AuthUserDto, CreateUserDto, CreateUserSchema, RegisterUserDto, UpdateUs
 import { DbService } from 'src/db/db.service';
 import { hashPassword } from 'src/common/utils/hash.util';
 import { generateUsername } from 'src/common/utils/characters.util';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { UploadService } from 'src/upload/upload.service';
 import { HttpException } from '@nestjs/common';
 @Injectable()
@@ -85,7 +85,6 @@ export class UserService {
       });
     }
   }
-
 
   async findOne(id?: string, email?: string, username?: string) {
     if (!id && !email && !username) {
