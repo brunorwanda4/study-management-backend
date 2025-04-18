@@ -3,8 +3,7 @@ import { AuthUserDto, LoginUserDto, LoginUserSchema, RegisterUserDto, CreateUser
 import { verifyPassword } from 'src/common/utils/hash.util';
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from './../user/user.service';
-import { User } from '@prisma/client';
-
+import { User } from 'generated/prisma';
 @Injectable()
 export class AuthService {
   constructor(
@@ -22,7 +21,6 @@ export class AuthService {
   async validateUser(input: LoginUserDto): Promise<User | null> {
     const validation = LoginUserSchema.safeParse(input);
     if (!validation.success) {
-      console.log( "Login data:" ,input)
       return null
     };
 
@@ -41,6 +39,7 @@ export class AuthService {
       id: user.id,
       name: user.name,
       email: user.email,
+      image: user?.image ?? undefined,
       role: user.role ?? undefined,
     };
 

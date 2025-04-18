@@ -45,6 +45,7 @@ export const AuthUserSchema = z.object({
         message: " Minimum 1 character"
     }),
     role: UserRoleEnum.optional(),
+    image: z.string().optional(),
     accessToken: z.string().optional(),
 })
 
@@ -85,6 +86,7 @@ export const AddressSchema = z.object({
 
 // Main User Schema
 export const UserSchema = z.object({
+    id : z.string(),
     name: z.string().min(1, { message: "Name is required" }).max(50, {
         message: "Maximum characters allowed for name is 50",
     }),
