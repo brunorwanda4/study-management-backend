@@ -41,18 +41,20 @@ type Address {
   cell         String?
   village      String?
   state        String?
+  city         String?
+  street       String?
   postalCode   String?
   googleMapUrl String?
 }
 
 type Contact {
-  phoneNumbers String[]
-  emails       String[]
+  phone String
+  email String
 }
 
 type SocialMedial {
-  name String
-  url  String
+  platform String
+  link     String
 }
 
 model User {
@@ -80,20 +82,21 @@ model User {
 // school module
 
 enum SchoolType {
-  PUBLIC
-  PRIVATE
-  INTERNATIONAL
+  Public
+  Private
+  Charter
+  International
 }
 
 enum SchoolMembers {
-  BOYS
-  GIRLS
-  MIXED
+  Mixed
+  Boys
+  Girls
 }
 
 enum AttendanceSystem {
-  ONLINE
-  MANUAL
+  Manual
+  Online
 }
 
 model School {

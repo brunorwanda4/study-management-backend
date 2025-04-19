@@ -1,30 +1,50 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CreateSchoolDto, createSchoolSchema, schoolTypeDto, SchoolMembersDto } from './dto/school.dto';
+import { CreateSchoolDto, CreateSchoolSchema, schoolTypeDto, SchoolMembersDto } from './dto/school.dto';
 import { DbService } from 'src/db/db.service';
 import { generateCode, generateUsername } from 'src/common/utils/characters.util';
+import { UploadService } from 'src/upload/upload.service';
 
 @Injectable()
 export class SchoolService {
-  constructor(private readonly dbService: DbService,) { }
+  constructor(
+    private readonly dbService: DbService,
+    private readonly uploadService: UploadService,
+  ) { }
 
   async create(createSchoolDto: CreateSchoolDto,) {
-    const validation = createSchoolSchema.safeParse(createSchoolDto);
+    const validation = CreateSchoolSchema.safeParse(createSchoolDto);
     if (!validation.success) {
       throw new BadRequestException('Invalid school data provided');
     }
-    const { name, creatorId, ...rest } = validation.data
+    const { name, creatorId, logo, username: initialUsername, ...rest } = validation.data;
+    let username = initialUsername;
     try {
-      const creator = await this.dbService.user.findUnique({ where: { id: creatorId } });
+      const [creator, getSchoolByUsername] = await Promise.all([
+        this.dbService.user.findUnique({ where: { id: creatorId } }),
+        this.dbService.school.findUnique({ where: { username } })
+      ]);
+
       if (!creator || (creator.role !== "SCHOOLSTAFF" && creator.role !== "ADMIN")) {
         throw new BadRequestException('you can not create school')
       }
+
+      if (getSchoolByUsername) {
+        username = generateUsername(name)
+      }
+      let imageUrl = logo;
+      if (logo && typeof logo === 'string' && logo.startsWith('data:image')) {
+        const uploaded = await this.uploadService.uploadBase64Image(logo, 'logos');
+        imageUrl = uploaded.secure_url;
+      }
+
       return await this.dbService.school.create({
         data: {
           name,
-          username: generateUsername(name),
-          code: generateCode(),
           creatorId,
-          ...rest
+          logo: imageUrl,
+          username,
+          code: generateCode(),
+          ...rest,
         }
       })
     } catch (error) {
@@ -34,6 +54,17 @@ export class SchoolService {
       });
     }
   }
+
+  // private extractCloudinaryPublicId(imageUrl?: string | null): string | null {
+  //   if (!imageUrl || !imageUrl.includes('cloudinary')) return null;
+
+  //   const parts = imageUrl.split('/');
+  //   const filename = parts[parts.length - 1];
+  //   const publicId = filename.split('.')[0];
+  //   const folder = parts[parts.length - 2];
+
+  //   return `${folder}/${publicId}`;
+  // }
 
   async findAll(schoolType?: schoolTypeDto, schoolMembers?: SchoolMembersDto, creatorId?: string) {
     try {

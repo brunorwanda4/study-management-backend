@@ -73,15 +73,17 @@ export const AgeSchema = z.object({
 });
 
 export const AddressSchema = z.object({
-    country: z.string().min(1, { message: "Country is required" }),
-    province: z.string().optional(),
-    district: z.string().optional(),
-    sector: z.string().optional(),
-    cell: z.string().optional(),
-    village: z.string().optional(),
-    state: z.string().optional(),
-    postalCode: z.string().optional(),
-    googleMapUrl: z.string().url({ message: "Invalid URL" }).optional(),
+  country: z.string().min(1, { message: "Country is required" }),
+  province: z.string().optional(),
+  district: z.string().optional(),
+  sector: z.string().optional(),
+  cell: z.string().optional(),
+  village: z.string().optional(),
+  state: z.string().optional(), // Note: Seems potentially redundant with province/district/sector depending on country context
+  city: z.string().optional(),
+  street: z.string().optional(),
+  postalCode: z.string().optional(),
+  googleMapUrl: z.string().url({ message: "Invalid Google Map URL" }).optional(), // Added URL validation
 });
 
 // Main User Schema
