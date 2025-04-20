@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const SchoolAcademicSchema = z.object({
     schoolId: z.string().min(1, { message: "School is required" }),
-    assessmentTypes: z.array(z.string()).optional(),
+    // assessmentTypes: z.array(z.string()).optional(),
     // Primary Education
     primarySubjectsOffered: z.array(z.string()).optional(),
     primaryPassMark: z.number().optional(),
@@ -38,3 +38,10 @@ export const SchoolAcademicSchema = z.object({
 });
 
 export type SchoolAcademicDto = z.infer<typeof SchoolAcademicSchema>;
+
+export const SchoolAcademicCreation = z.object({
+    totalClasses: z.number(),
+    totalModule: z.number()
+})
+
+export type SchoolAcademicCreationDto = z.infer<typeof SchoolAcademicCreation>

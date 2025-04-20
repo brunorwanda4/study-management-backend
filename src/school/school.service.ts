@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { CreateSchoolDto, CreateSchoolSchema, schoolTypeDto, SchoolMembersDto, curriculumEnumDto } from './dto/school.dto';
-import { SchoolAcademicDto, SchoolAcademicSchema } from './dto/school-academic.dto';
+import { SchoolAcademicCreationDto, SchoolAcademicDto, SchoolAcademicSchema } from './dto/school-academic.dto';
 import { DbService } from 'src/db/db.service';
 import { generateCode, generateUsername } from 'src/common/utils/characters.util';
 import { UploadService } from 'src/upload/upload.service';
@@ -147,7 +147,7 @@ export class SchoolService {
      */
     async setupAcademicStructure(
         schoolAcademicDto: SchoolAcademicDto,
-    ): Promise<{ classes: ClassDto[], modules: Module[] }> {
+    ): Promise<SchoolAcademicCreationDto> {
         const validation = SchoolAcademicSchema.safeParse(schoolAcademicDto);
         if (!validation.success) {
             // Use format() to get detailed Zod errors
@@ -156,7 +156,7 @@ export class SchoolService {
 
         const { schoolId, primarySubjectsOffered, oLevelCoreSubjects, oLevelOptionSubjects,
             aLevelSubjectCombination, aLevelOptionSubjects, tvetSpecialization, tvetOptionSubjects,
-            assessmentTypes,
+            // assessmentTypes,
         } = validation.data;
 
 
@@ -421,7 +421,6 @@ export class SchoolService {
                 });
                 createdModulesCount = result.count;
             }
-
             // Note: assessmentTypes are part of SchoolAcademicSchema but not directly
             // linked to Class or Module in your provided schema. They are not
             // used in the class/module creation logic here. You might need
@@ -429,31 +428,30 @@ export class SchoolService {
             // or they might be used elsewhere in your application logic.
 
             // Retrieve the full created class and module objects to return
-            const classes = await this.dbService.class.findMany({
-                where: { schoolId: school.id, name: { in: classNamesCreated } } // Retrieve classes created in this run
-            });
+            // const classes = await this.dbService.class.findMany({
+            //     where: { schoolId: school.id, name: { in: classNamesCreated } } // Retrieve classes created in this run
+            // });
 
-            const modules = await this.dbService.module.findMany({
-                where: { classId: { in: classes.map(c => c.id) } } // Retrieve modules linked to these classes
-            });
+            // const modules = await this.dbService.module.findMany({
+            //     where: { classId: { in: classes.map(c => c.id) } } // Retrieve modules linked to these classes
+            // });
 
             // Omit code from returned classes as per requirement
             // The cast to ClassDto[] should now work if ClassDto has code as optional
-            const safeClasses = classes.map(({ code, ...rest }) => rest) as unknown as ClassDto[];
+            // const safeClasses = classes.map(({ code, ...rest }) => rest) as unknown as ClassDto[];
 
 
-            console.log(`Attempted to create ${classesToCreate.length} classes and ${moduleInstancesToPrepare.length} initial module instances.`);
-            console.log(`Successfully created ${createdClassesCount} classes and ${createdModulesCount} module instances for school ${school.name}.`);
+            // console.log(`Attempted to create ${classesToCreate.length} classes and ${moduleInstancesToPrepare.length} initial module instances.`);
+            // console.log(`Successfully created ${createdClassesCount} classes and ${createdModulesCount} module instances for school ${school.name}.`);
 
 
-            return { classes: safeClasses, modules };
+            return { totalClasses: createdClassesCount, totalModule: createdModulesCount };
 
         } catch (error) {
             // Re-throw known exceptions or wrap others
             if (error instanceof NotFoundException || error instanceof BadRequestException) {
                 throw error;
             }
-            console.error('Error setting up academic structure:', error);
             // Check for unique constraint violation on class username or code
             if (error.code === 'P2002') {
                 if (error.meta?.target?.includes('username')) {
