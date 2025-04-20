@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CreateClassDto, CreateClassSchema, ClassDto, ClassTypeEnum, ClassTypeDto } from './dto/class.dto';
+import { CreateClassDto, CreateClassSchema, ClassDto, ClassTypeEnum } from './dto/class.dto';
 import { DbService } from 'src/db/db.service';
 import { UploadService } from 'src/upload/upload.service';
 import { generateCode, generateUsername } from 'src/common/utils/characters.util';
@@ -83,7 +83,7 @@ export class ClassService {
     }
   }
 
-  async findAll(schoolId?: string, creatorId?: string, classType?: ClassTypeDto) {
+  async findAll(schoolId?: string, creatorId?: string, classType?: ClassDto) {
     try {
       const where: any = {};
 

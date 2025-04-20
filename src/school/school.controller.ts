@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestj
 import { SchoolService } from './school.service';
 import { CreateSchoolDto, CreateSchoolSchema, SchoolMembersDto, schoolTypeDto } from './dto/school.dto';
 import { ZodValidationPipe } from 'src/common/pipes/zod-validation.pipe';
+import { SchoolAcademicDto, SchoolAcademicSchema } from './dto/school-academic.dto';
 
 @Controller('school')
 export class SchoolController {
@@ -34,5 +35,11 @@ export class SchoolController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.schoolService.remove(id);
+  }
+
+
+  @Post("/academic")
+  academic(@Body(new ZodValidationPipe(SchoolAcademicSchema)) schoolAcademicDto: SchoolAcademicDto) {
+    return this.schoolService.setupAcademicStructure(schoolAcademicDto);
   }
 }

@@ -1,6 +1,9 @@
 import { AddressSchema } from "src/user/dto/user.dto";
 import { z } from "zod";
 
+export const curriculumEnum = z.enum(["REB", "TVET"])
+export type curriculumEnumDto = z.infer<typeof curriculumEnum>
+
 export const SchoolMembers = z.enum(["Mixed", "Boys", "Girls"]);
 export type SchoolMembersDto = z.infer<typeof SchoolMembers>
 
@@ -37,7 +40,7 @@ export const CreateSchoolSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
   schoolType: SchoolTypeEnum,
-  curriculum: z.array(z.string()).min(1, "At least one curriculum is required"),
+  curriculum: z.array(curriculumEnum).min(1, "At least one curriculum is required"),
   educationLevel: z.array(z.string()).min(1, "At least one education level is required"),
   schoolMembers: SchoolMembers.optional(),
   accreditationNumber: z.string().optional(),
@@ -75,36 +78,6 @@ export const CreateSchoolSchema = z.object({
 });
 
 export type CreateSchoolDto = z.infer<typeof CreateSchoolSchema>;
-
-export const SchoolAcademicSchema = z.object({
-  schoolId: z.string().min(1, { message: "School is required" }),
-  assessmentTypes: z.array(z.string()).optional(),
-  // Primary Education
-  primarySubjectsOffered: z.array(z.string()).optional(), // Using array for multiple selections
-  primaryPassMark: z.number().optional(), // Could be a number input or a select with common values
-
-  // Ordinary Level
-  oLevelCoreSubjects: z.array(z.string()).optional(),
-  oLevelOptionSubjects: z.array(z.string()).optional(),
-  oLevelExaminationTypes: z.array(z.string()).optional(),
-  oLevelAssessment: z.array(z.string()).optional(),
-
-  // Advanced Level
-  aLevelSubjectCombination: z
-    .array(z.string())
-    .min(1, {
-      message: "Advance level is required"
-    }), // Assuming one combination can be selected
-  aLevelOptionSubjects: z.array(z.string()).optional(),
-  aLevelPassMark: z.number().int().optional(),
-  // TVET
-  tvetSpecialization: z
-    .array(z.string())
-    .min(1, {
-      message: "TVET Trading is required,"
-    }), // Assuming one specialization can be selected
-  tvetOptionSubjects: z.array(z.string()).optional(),
-});
 
 const SchoolSchema = z.object({
   // IDs are strings in Prisma's MongoDB adapter
