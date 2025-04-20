@@ -189,6 +189,8 @@ model Class {
   user    User?     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   teacher Teacher?  @relation(fields: [classTeacherId], references: [id], onDelete: Cascade)
   Student Student[]
+
+  Module Module[]
 }
 
 // school member
@@ -218,4 +220,25 @@ model Student {
   class  Class?  @relation(fields: [classId], references: [id])
   school School? @relation(fields: [schoolId], references: [id])
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum ModuleType {
+  General
+  Optional
+}
+
+model Module {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  classId       String?     @db.ObjectId
+  code          String      @unique
+  subjectType   ModuleType?
+  curriculum    String?
+  copyright     String?
+  learningHours Int?
+
+  createAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  class Class? @relation(fields: [classId], references: [id])
 }
