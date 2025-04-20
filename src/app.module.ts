@@ -7,10 +7,11 @@ import { AuthModule } from './auth/auth.module';
 import { UploadModule } from './upload/upload.module';
 import { configureCloudinary } from './cloudinary.config';
 import { SchoolModule } from './school/school.module';
+import { ClassModule } from './class/class.module';
 
 configureCloudinary();
 @Module({
-  imports: [UserModule, DbModule, AuthModule, UploadModule, SchoolModule],
+  imports: [UserModule, DbModule, AuthModule, UploadModule, SchoolModule, ClassModule],
   controllers: [AppController],
   providers: [AppService],
 })

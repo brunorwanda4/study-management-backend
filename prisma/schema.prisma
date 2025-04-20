@@ -111,6 +111,7 @@ model School {
   schoolType            SchoolType
   curriculum            String[]
   educationLevel        String[]
+  assessmentTypes       String[]
   schoolMembers         SchoolMembers?
   accreditationNumber   String?
   affiliation           String?
@@ -163,26 +164,30 @@ model SchoolStaff {
 
 // class
 enum ClassType {
-  SCHOOLCLASS
-  PRIVET
-  PUBLIC
+  SchoolClass
+  Private
+  Public
 }
 
 model Class {
-  id        String     @id @default(auto()) @map("_id") @db.ObjectId
-  schoolId  String?    @db.ObjectId
-  creatorId String?    @db.ObjectId
-  code      String
-  name      String
-  username  String
-  image     String?
-  classType ClassType? @default(PRIVET)
+  id             String     @id @default(auto()) @map("_id") @db.ObjectId
+  schoolId       String?    @db.ObjectId
+  creatorId      String?    @db.ObjectId
+  code           String     @unique
+  name           String
+  username       String     @unique
+  image          String?
+  classType      ClassType? @default(Private)
+  educationLever String?
+  curriculum     String?
+  classTeacherId String?    @db.ObjectId
 
   createAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   school  School?   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   user    User?     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  teacher Teacher?  @relation(fields: [classTeacherId], references: [id], onDelete: Cascade)
   Student Student[]
 }
 
@@ -197,6 +202,8 @@ model Teacher {
 
   school School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  Class Class[]
 }
 
 model Student {
