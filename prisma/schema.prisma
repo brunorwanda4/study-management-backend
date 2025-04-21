@@ -77,6 +77,8 @@ model User {
   Class       Class[]
   Teacher     Teacher[]
   Student     Student[]
+
+  SchoolJoinRequest SchoolJoinRequest[]
 }
 
 // school module
@@ -255,4 +257,8 @@ model SchoolJoinRequest {
   updatedAt DateTime @updatedAt
 
   school School @relation(fields: [schoolId], references: [id])
+  user   User?  @relation(fields: [userId], references: [id])
+
+  @@unique([userId, schoolId, email])
+  @@map("school_join_requests")
 }

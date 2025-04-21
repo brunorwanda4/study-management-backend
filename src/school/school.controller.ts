@@ -3,6 +3,7 @@ import { SchoolService } from './school.service';
 import { CreateSchoolDto, CreateSchoolSchema, SchoolMembersDto, schoolTypeDto } from './dto/school.dto';
 import { ZodValidationPipe } from 'src/common/pipes/zod-validation.pipe';
 import { SchoolAcademicDto, SchoolAcademicSchema } from './dto/school-academic.dto';
+import { SchoolAdministrationDto, SchoolAdministrationSchema } from './dto/school-administration.dto';
 
 @Controller('school')
 export class SchoolController {
@@ -39,7 +40,13 @@ export class SchoolController {
 
 
   @Post("/academic")
-  academic(@Body(new ZodValidationPipe(SchoolAcademicSchema)) schoolAcademicDto: SchoolAcademicDto) {
+  createAcademic(@Body(new ZodValidationPipe(SchoolAcademicSchema)) schoolAcademicDto: SchoolAcademicDto) {
     return this.schoolService.setupAcademicStructure(schoolAcademicDto);
   }
+
+  @Post("/administration")
+  createAdministration(@Body(new ZodValidationPipe(SchoolAdministrationSchema)) schoolAdministrationDto: SchoolAdministrationDto) {
+    return this.schoolService.sendAdministrationJoinRequests(schoolAdministrationDto);
+  }
+
 }

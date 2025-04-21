@@ -1,7 +1,7 @@
 import * as z from "zod";
 
 export const SchoolAdministrationSchema = z.object({
-    schoolId : z.string().min(1),
+    schoolId: z.string().min(1),
     headmasterName: z
         .string()
         .min(2, { message: "Headmaster name is required." }),

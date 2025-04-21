@@ -6,6 +6,8 @@ import { generateCode, generateUsername } from 'src/common/utils/characters.util
 import { UploadService } from 'src/upload/upload.service';
 import { ClassDto } from 'src/class/dto/class.dto'; // Assuming ClassDto is in class/dto/class.dto
 import { Module, ModuleType, Prisma } from 'generated/prisma';
+import { RequestToJoinSchoolDto, RequestToJoinSchoolSchema } from './dto/request-toJoin-school.dto';
+import { SchoolAdministrationDto, SchoolAdministrationSchema } from './dto/school-administration.dto';
 
 @Injectable()
 export class SchoolService {
@@ -467,7 +469,127 @@ export class SchoolService {
         }
     }
 
+    /**
+    * Sends multiple join requests for school administration personnel based on provided data.
+    * This function is typically used by a school administrator or during initial school setup.
+    * Creates SchoolJoinRequest entries with userId as null, using provided contact details.
+    * @param schoolAdministrationDto The DTO containing school administration contact details.
+    * @returns A result indicating the number of requests attempted and created.
+    */
+    async sendAdministrationJoinRequests(schoolAdministrationDto: SchoolAdministrationDto): Promise<{ attempted: number, created: number }> {
+        // 1. Validate input
+        const validation = SchoolAdministrationSchema.safeParse(schoolAdministrationDto);
+        if (!validation.success) {
+            // Use format() to get detailed Zod errors
+            throw new BadRequestException('Invalid school administration data provided',);
+        }
+        const { schoolId, headmasterName, headmasterEmail, headmasterPhone,
+            DirectorOfStudies, principalEmail, principalPhone, // Note: using principalEmail/Phone for DirectorOfStudies
+            additionalAdministration } = validation.data; // Destructure validated data
 
+        try {
+            // 2. Verify school existence
+            const school = await this.dbService.school.findUnique({ where: { id: schoolId } });
+
+            if (!school) {
+                throw new NotFoundException(`School with ID "${schoolId}" not found`);
+            }
+
+            // 3. Prepare data for join requests
+            const requestsToCreate: Prisma.SchoolJoinRequestCreateManyInput[] = []; // Use Prisma type for createMany
+
+            // Prepare data for Headmaster (if email is provided, as it's part of unique constraint)
+            if (headmasterEmail) {
+                requestsToCreate.push({
+                    schoolId: school.id,
+                    role: 'Headmaster', // Assign a specific role string
+                    name: headmasterName,
+                    email: headmasterEmail,
+                    phone: headmasterPhone,
+                    userId: null, // No authenticated user ID for this type of request
+                    // status defaults to 'pending'
+                });
+            }
+
+
+            // Prepare data for Director of Studies (if email is provided)
+            if (principalEmail) { // Using principalEmail for check as per schema structure
+                requestsToCreate.push({
+                    schoolId: school.id,
+                    role: 'Director of Studies', // Assign a specific role string
+                    name: DirectorOfStudies,
+                    email: principalEmail, // Using principalEmail as per schema
+                    phone: principalPhone, // Using principalPhone as per schema
+                    userId: null, // No authenticated user ID
+                    // status defaults to 'pending'
+                });
+            }
+
+
+            // Prepare data for additional administration personnel (if email is provided for each)
+            if (additionalAdministration && additionalAdministration.length > 0) {
+                additionalAdministration.forEach(admin => {
+                    if (admin.email) { // Ensure email is provided for each additional admin
+                        requestsToCreate.push({
+                            schoolId: school.id,
+                            role: admin.role, // Use the role from the additionalAdministration object
+                            name: admin.name,
+                            email: admin.email,
+                            phone: admin.phone,
+                            userId: null, // No authenticated user ID
+                            // status defaults to 'pending'
+                        });
+                    } else {
+                        console.warn(`Skipping additional administration entry due to missing email:`, admin);
+                        // Optionally, you could throw a BadRequestException here or track skipped entries
+                    }
+                });
+            }
+
+            // If no valid requests were prepared
+            if (requestsToCreate.length === 0) {
+                // This might happen if required emails (headmaster, director, additional) were missing
+                throw new BadRequestException('No valid administration contact emails provided to send join requests.');
+            }
+
+
+            // 4. Create the join requests in the database
+            let createdCount = 0;
+            // Rely on createMany with skipDuplicates for efficiency.
+            // The unique constraint @@unique([userId, schoolId, email]) on SchoolJoinRequest
+            // will prevent duplicate requests with the same schoolId and email (when userId is null).
+            try {
+                const result = await this.dbService.schoolJoinRequest.createMany({
+                    data: requestsToCreate as Prisma.Enumerable<Prisma.SchoolJoinRequestCreateManyInput>, // Cast for type safety
+                });
+                createdCount = result.count;
+            } catch (error) {
+                // P2002 errors for createMany with skipDuplicates are suppressed (skipped),
+                // so this catch block will handle other potential database errors during createMany.
+                console.error('Error during bulk creation of administration join requests:', error);
+                throw new InternalServerErrorException('Something went wrong during the bulk creation of administration join requests.');
+            }
+
+
+            // Optional: Trigger notifications for the successfully created requests
+
+
+            console.log(`Attempted to create ${requestsToCreate.length} administration join requests.`);
+            console.log(`Successfully created ${createdCount} administration join requests for school ${school.name}.`);
+
+
+            return { attempted: requestsToCreate.length, created: createdCount };
+
+        } catch (error) {
+            // Re-throw known exceptions
+            if (error instanceof NotFoundException || error instanceof BadRequestException || error instanceof InternalServerErrorException) {
+                throw error;
+            }
+            // Handle other potential errors not caught by createMany's skipDuplicates
+            console.error('Unexpected error in sendAdministrationJoinRequests:', error);
+            throw new InternalServerErrorException('An unexpected error occurred while processing administration join requests.');
+        }
+    }
     // private extractCloudinaryPublicId(imageUrl?: string | null): string | null {
     //   if (!imageUrl || !imageUrl.includes('cloudinary')) return null;
 
