@@ -140,20 +140,19 @@ model School {
   Teacher     Teacher[]
 
   Student Student[]
+
+  SchoolJoinRequest SchoolJoinRequest[]
 }
 
 // school member
-
-enum schoolStaffRole {
-  DIRECTOR
-  DOSE
-}
-
 model SchoolStaff {
-  id       String        @id @default(auto()) @map("_id") @db.ObjectId
-  userId   String        @db.ObjectId
-  schoolId String        @db.ObjectId
-  role     SchoolMembers
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String  @db.ObjectId
+  schoolId    String  @db.ObjectId
+  role        String
+  email       String?
+  name        String?
+  phoneNumber String?
 
   createAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -241,4 +240,19 @@ model Module {
   updatedAt DateTime @updatedAt
 
   class Class? @relation(fields: [classId], references: [id])
+}
+
+model SchoolJoinRequest {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String?  @db.ObjectId
+  schoolId  String   @db.ObjectId
+  role      String
+  name      String?
+  email     String?
+  phone     String?
+  status    String   @default("pending")
+  createAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id])
 }

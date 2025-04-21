@@ -467,6 +467,7 @@ export class SchoolService {
         }
     }
 
+
     // private extractCloudinaryPublicId(imageUrl?: string | null): string | null {
     //   if (!imageUrl || !imageUrl.includes('cloudinary')) return null;
 
@@ -478,26 +479,4 @@ export class SchoolService {
     //   return `${folder}/${publicId}`;
     // }
 
-}
-
-
-const data = {
-    "_id": {
-        "$oid": "6805505354585f10fd1ea42e"
-    },
-    "name": "S5 PCM GreenhillsInterantion 2025-2026",
-    "username": "s5_pcm_greenhillsinterantion_2025-2026_285",
-    "schoolId": {
-        "$oid": "68054c967d55ea9a64483b20"
-    },
-    "code": "JCMQM",
-    "classType": "SchoolClass",
-    "educationLever": "ALevel",
-    "curriculum": "REB",
-    "createAt": {
-        "$date": "2025-04-20T19:51:47.488Z"
-    },
-    "updatedAt": {
-        "$date": "2025-04-20T19:51:47.488Z"
-    }
 }
