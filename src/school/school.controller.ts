@@ -38,12 +38,13 @@ export class SchoolController {
     return this.schoolService.remove(id);
   }
 
-
+// TODO : add auth guid
   @Post("/academic")
   createAcademic(@Body(new ZodValidationPipe(SchoolAcademicSchema)) schoolAcademicDto: SchoolAcademicDto) {
     return this.schoolService.setupAcademicStructure(schoolAcademicDto);
   }
 
+  // TODO : add auth guid
   @Post("/administration")
   createAdministration(@Body(new ZodValidationPipe(SchoolAdministrationSchema)) schoolAdministrationDto: SchoolAdministrationDto) {
     return this.schoolService.sendAdministrationJoinRequests(schoolAdministrationDto);

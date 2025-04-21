@@ -6,7 +6,7 @@ import { generateCode, generateUsername } from 'src/common/utils/characters.util
 import { UploadService } from 'src/upload/upload.service';
 import { ClassDto } from 'src/class/dto/class.dto'; // Assuming ClassDto is in class/dto/class.dto
 import { Module, ModuleType, Prisma } from 'generated/prisma';
-import { RequestToJoinSchoolDto, RequestToJoinSchoolSchema } from './dto/request-toJoin-school.dto';
+import { RequestToJoinSchoolDto, RequestToJoinSchoolSchema, sendAdministrationJoinRequestsDto } from './dto/request-toJoin-school.dto';
 import { SchoolAdministrationDto, SchoolAdministrationSchema } from './dto/school-administration.dto';
 
 @Injectable()
@@ -476,7 +476,7 @@ export class SchoolService {
     * @param schoolAdministrationDto The DTO containing school administration contact details.
     * @returns A result indicating the number of requests attempted and created.
     */
-    async sendAdministrationJoinRequests(schoolAdministrationDto: SchoolAdministrationDto): Promise<{ attempted: number, created: number }> {
+    async sendAdministrationJoinRequests(schoolAdministrationDto: SchoolAdministrationDto): Promise<sendAdministrationJoinRequestsDto> {
         // 1. Validate input
         const validation = SchoolAdministrationSchema.safeParse(schoolAdministrationDto);
         if (!validation.success) {
@@ -569,16 +569,7 @@ export class SchoolService {
                 console.error('Error during bulk creation of administration join requests:', error);
                 throw new InternalServerErrorException('Something went wrong during the bulk creation of administration join requests.');
             }
-
-
-            // Optional: Trigger notifications for the successfully created requests
-
-
-            console.log(`Attempted to create ${requestsToCreate.length} administration join requests.`);
-            console.log(`Successfully created ${createdCount} administration join requests for school ${school.name}.`);
-
-
-            return { attempted: requestsToCreate.length, created: createdCount };
+            return { attempted: requestsToCreate.length, created: createdCount, message : `Attempted to create ${requestsToCreate.length} administration join requests.` };
 
         } catch (error) {
             // Re-throw known exceptions
