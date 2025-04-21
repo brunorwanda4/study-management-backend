@@ -38,6 +38,7 @@ export class AuthService {
     const payload: AuthUserDto = {
       id: user.id,
       name: user.name,
+      username : user.username,
       email: user.email,
       image: user?.image ?? undefined,
       role: user.role ?? undefined,

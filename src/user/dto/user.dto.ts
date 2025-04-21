@@ -44,6 +44,7 @@ export const AuthUserSchema = z.object({
     name: z.string().min(1, {
         message: " Minimum 1 character"
     }),
+    username : z.string().min(1),
     role: UserRoleEnum.optional(),
     image: z.string().optional(),
     accessToken: z.string().optional(),
