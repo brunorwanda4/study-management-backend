@@ -9,10 +9,11 @@ import { configureCloudinary } from './cloudinary.config';
 import { SchoolModule } from './school/school.module';
 import { ClassModule } from './class/class.module';
 import { ModuleModule } from './module/module.module';
+import { JoinSchoolRequestModule } from './join-school-request/join-school-request.module';
 
 configureCloudinary();
 @Module({
-  imports: [UserModule, DbModule, AuthModule, UploadModule, SchoolModule, ClassModule, ModuleModule],
+  imports: [UserModule, DbModule, AuthModule, UploadModule, SchoolModule, ClassModule, ModuleModule, JoinSchoolRequestModule],
   controllers: [AppController],
   providers: [AppService],
 })

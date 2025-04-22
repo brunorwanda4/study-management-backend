@@ -4,10 +4,9 @@ import { SchoolAcademicCreationDto, SchoolAcademicDto, SchoolAcademicSchema } fr
 import { DbService } from 'src/db/db.service';
 import { generateCode, generateUsername } from 'src/common/utils/characters.util';
 import { UploadService } from 'src/upload/upload.service';
-import { ClassDto } from 'src/class/dto/class.dto'; // Assuming ClassDto is in class/dto/class.dto
-import { Module, ModuleType, Prisma } from 'generated/prisma';
-import { RequestToJoinSchoolDto, RequestToJoinSchoolSchema, sendAdministrationJoinRequestsDto } from './dto/request-toJoin-school.dto';
+import {  ModuleType, Prisma } from 'generated/prisma';
 import { SchoolAdministrationDto, SchoolAdministrationSchema } from './dto/school-administration.dto';
+import { sendAdministrationJoinRequestsDto } from 'src/join-school-request/dto/join-school-request.dto';
 
 @Injectable()
 export class SchoolService {
@@ -53,8 +52,6 @@ export class SchoolService {
                 }
             })
         } catch (error) {
-            console.error('Error creating school:', error); // Log the error
-            // Check for unique constraint violation on username or code if applicable
             if (error.code === 'P2002') {
                 if (error.meta?.target?.includes('username')) {
                     throw new BadRequestException('School with this username already exists.');
