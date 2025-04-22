@@ -137,12 +137,10 @@ model School {
   createAt              DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
 
-  SchoolStaff SchoolStaff[]
-  Class       Class[]
-  Teacher     Teacher[]
-
-  Student Student[]
-
+  SchoolStaff       SchoolStaff[]
+  Class             Class[]
+  Teacher           Teacher[]
+  Student           Student[]
   SchoolJoinRequest SchoolJoinRequest[]
 }
 

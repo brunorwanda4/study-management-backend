@@ -13,6 +13,7 @@ import { AuthUserDto } from 'src/user/dto/user.dto';
 import { UpdateSchoolJoinRequestDto } from './dto/update-school-join-request.dto';
 import { GetRequestsFilterDto } from './dto/filter-school-join-request.dto';
 import { CreateJoinSchoolRequestDto } from './dto/join-school-request.dto';
+import { validSchoolStaffRoles } from 'src/lib/context/school.context';
 
 // Assuming AuthUserDto is defined somewhere
 // import { AuthUserDto } from '../auth/dto/auth-user.dto';
@@ -81,76 +82,59 @@ export class SchoolJoinRequestService {
       throw new UnauthorizedException("You must be logged in to accept school join requests.");
     }
 
-    // Find and Validate the Request BEFORE the transaction
-    const request = await this.findOne(id);
+    const request = await this.findOne(id); // Find and Validate BEFORE transaction
 
     if (request.status !== 'pending') {
       throw new BadRequestException(`Sorry, this request is not pending. Current status: ${request.status}.`);
     }
-
-    // if (!request.userId) {
-    //   throw new BadRequestException("Cannot accept this request: it is not linked to a user.");
-    // }
-
-    // Optional: Authorization Check (Add your logic here)
-    // await this.checkAcceptingUserAuthorization(acceptingUser.id, request.schoolId);
-
+    // Optional: Authorization Check (Add your logic here - e.g., check if acceptingUser is admin of schoolId)
 
     try {
       // Use the functional transaction overload
-      // The function passed here receives a transactional client instance ('transactionalPrisma')
       const results = await this.dbService.$transaction(async (transactionalPrisma) => {
-        // Perform all database operations using 'transactionalPrisma' inside this block
+        // Use the 'transactionalPrisma' client for all operations inside this block
 
         let createdRoleEntry; // Variable to hold the created role object
 
         // 4. Create the specific user role based on the request role
-        switch (request.role) {
-          case 'SchoolStaff':
-            createdRoleEntry = await transactionalPrisma.schoolStaff.create({ // Use transactionalPrisma
-              data: {
-                userId: acceptingUser.id, // Use the userId from the request!
-                schoolId: request.schoolId,
-                role: request.role,
-                email: request.email,
-                name: request.name,
-                phone: request.phone,
-              },
-            });
-            break; // Use break to exit the switch
-
-          case 'Teacher':
-            createdRoleEntry = await transactionalPrisma.teacher.create({ // Use transactionalPrisma
-              data: {
-                userId: acceptingUser.id, // Use the userId from the request!
-                schoolId: request.schoolId, // Note: Teacher schoolId is optional, but schema uses it
-                email: request.email,
-                name: request.name,
-                phone: request.phone,
-                // image: request.image, // Assuming image is not on join request
-              },
-            });
-            break;
-
-          case 'Student':
-            // NOTE: Still need to handle classId assignment for students
-            createdRoleEntry = await transactionalPrisma.student.create({ // Use transactionalPrisma
-              data: {
-                userId: acceptingUser.id, // Use the userId from the request!
-                schoolId: request.schoolId, // Assuming schoolId is used even if optional in schema
-                email: request.email,
-                name: request.name,
-                phone: request.phone,
-                // image: request.image, // Assuming image is not on join request
-                // classId: ???
-              },
-            });
-            break;
-
-          default:
-            // Throw *inside* the transaction function to cause rollback
-            throw new BadRequestException(`Unknown role "${request.role}" specified in the join request.`);
+        if (request.role === 'Teacher') {
+          createdRoleEntry = await transactionalPrisma.teacher.create({ // Use transactionalPrisma
+            data: {
+              userId: acceptingUser.id,
+              schoolId: request.schoolId,
+              email: request.email,
+              name: request.name,
+              phone: request.phone,
+            },
+          });
+        } else if (request.role === 'Student') {
+          createdRoleEntry = await transactionalPrisma.student.create({ // Use transactionalPrisma
+            data: {
+              userId: acceptingUser.id,
+              schoolId: request.schoolId, // Assuming schoolId is used even if optional in schema
+              email: request.email,
+              name: request.name,
+              phone: request.phone,
+              // classId: ??? // Handle student class assignment if necessary
+            },
+          });
+        } else if (validSchoolStaffRoles.includes(request.role)) { // Check if the role is in the known staff roles list
+          createdRoleEntry = await transactionalPrisma.schoolStaff.create({ // Use transactionalPrisma
+            data: {
+              userId: acceptingUser.id,
+              schoolId: request.schoolId,
+              role: request.role, // Store the specific staff role (HeadTeacher, Librarian, etc.)
+              email: request.email,
+              name: request.name,
+              phone: request.phone,
+            },
+          });
         }
+        else {
+          // If the role is not Teacher, Student, or a valid SchoolStaff role
+          throw new BadRequestException(`Invalid or unknown role "${request.role}" specified in the join request.`);
+        }
+
 
         // 5. Update the join request status to 'accepted'
         const acceptedRequest = await transactionalPrisma.schoolJoinRequest.update({ // Use transactionalPrisma
@@ -163,7 +147,7 @@ export class SchoolJoinRequestService {
       });
 
       // Destructure the results returned from the transaction function
-      const { createdRoleEntry, acceptedRequest } = results;
+      const { acceptedRequest } = results;
 
 
       // 6. Generate JWT token for the user whose request was accepted
@@ -171,8 +155,9 @@ export class SchoolJoinRequestService {
       const payload = {
         sub: request.userId, // Subject: the user ID
         schoolId: request.schoolId,
-        role: request.role, // The role they just got assigned in this school
-        // Add other claims as needed (e.g., permissions)
+        role: request.role, // The role they just got assigned in this school (Teacher, Student, or specific staff role)
+        name : request.name,
+        email : request.email,
       };
 
       const token = this.jwtService.sign(payload); // Sign the payload to create the token
@@ -186,11 +171,12 @@ export class SchoolJoinRequestService {
     } catch (error) {
       // Handle specific Prisma errors, e.g., unique constraint violation
       if (error instanceof PrismaClientKnownRequestError) {
-        // P2002 is the error code for unique constraint violation
         if (error.code === 'P2002') {
-          // Check which constraint failed
           const target = (error.meta as any)?.target?.join(', ');
-          throw new BadRequestException(`User already has a role (${request.role}) in this school. Unique constraint failed on: ${target}`);
+          // Be specific in the error message based on which unique constraint failed if possible
+          let detail = `User already has a role in this school`;
+          if (target) detail += `: constraint on ${target}`;
+          throw new BadRequestException(`${detail}`);
         }
         // Handle other Prisma errors if necessary
         throw new BadRequestException(`Database error while accepting request: ${error.message}`);
@@ -199,9 +185,9 @@ export class SchoolJoinRequestService {
         throw error;
       }
       // Catch any other unexpected errors
-      console.error('Error accepting school join request:', error); // Log the unexpected error
+      console.error('Unexpected error accepting school join request:', error); // Log the unexpected error
       // Throw a generic error or re-throw the original error if debugging
-      throw new BadRequestException({ // Use BadRequestException or InternalServerErrorException
+      throw new BadRequestException({
         message: 'Something went wrong while accepting the school request.',
         error: error.message, // Expose error message for debugging, or mask in production
       });
@@ -244,7 +230,7 @@ export class SchoolJoinRequestService {
   async findByUserId(userId: string): Promise<SchoolJoinRequest[]> {
     return this.dbService.schoolJoinRequest.findMany({
       where: { userId },
-      // include: { school: true }, // Maybe include school details here
+      include: { school: true }, // Maybe include school details here
     });
   }
 
@@ -268,6 +254,3 @@ export class SchoolJoinRequestService {
     });
   }
 }
-
-
-

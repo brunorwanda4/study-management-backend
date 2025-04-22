@@ -4,7 +4,7 @@ import { SchoolAcademicCreationDto, SchoolAcademicDto, SchoolAcademicSchema } fr
 import { DbService } from 'src/db/db.service';
 import { generateCode, generateUsername } from 'src/common/utils/characters.util';
 import { UploadService } from 'src/upload/upload.service';
-import {  ModuleType, Prisma } from 'generated/prisma';
+import { ModuleType, Prisma } from 'generated/prisma';
 import { SchoolAdministrationDto, SchoolAdministrationSchema } from './dto/school-administration.dto';
 import { sendAdministrationJoinRequestsDto } from 'src/join-school-request/dto/join-school-request.dto';
 
@@ -106,17 +106,21 @@ export class SchoolService {
         const where = id ? { id } : code ? { code } : { username };
 
         try {
-            const school = await this.dbService.school.findUnique({ where });
+            const school = await this.dbService.school.findUnique({
+                where,
+                include: {
+                    SchoolStaff: true,
+                    Teacher: true,
+                    Student: true,
+                    SchoolJoinRequest: true
+                }
+            });
 
             if (!school) {
                 const identifier = id || code || username;
                 throw new NotFoundException(`School not found with identifier: ${identifier}`);
             }
-
-            // Omit the code if it should be private
-            const { code: schoolCode, ...safeSchool } = school;
-            return safeSchool; // Return the safe school object
-
+            return school; // Return the safe school object
         } catch (error) {
             console.error('Error retrieving school:', error);
             // Re-throw NotFoundException if it originated from the "school not found" check
@@ -512,7 +516,7 @@ export class SchoolService {
             if (principalEmail) { // Using principalEmail for check as per schema structure
                 requestsToCreate.push({
                     schoolId: school.id,
-                    role: 'Director of Studies', // Assign a specific role string
+                    role: 'DirectorOfStudies', // Assign a specific role string
                     name: DirectorOfStudies,
                     email: principalEmail, // Using principalEmail as per schema
                     phone: principalPhone, // Using principalPhone as per schema
@@ -565,7 +569,7 @@ export class SchoolService {
                 console.error('Error during bulk creation of administration join requests:', error);
                 throw new InternalServerErrorException('Something went wrong during the bulk creation of administration join requests.');
             }
-            return { attempted: requestsToCreate.length, created: createdCount, message : `Attempted to create ${requestsToCreate.length} administration join requests.` };
+            return { attempted: requestsToCreate.length, created: createdCount, message: `Attempted to create ${requestsToCreate.length} administration join requests.` };
 
         } catch (error) {
             // Re-throw known exceptions
