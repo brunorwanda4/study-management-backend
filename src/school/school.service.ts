@@ -89,7 +89,6 @@ export class SchoolService {
             const safeSchool = schools.map(({ code, ...rest }) => rest);
             return safeSchool;
         } catch (error) {
-            console.error('Error retrieving schools:', error);
             throw new NotFoundException({
                 message: 'Something went wrong while retrieving schools',
                 error: error.message, // Provide error message in response

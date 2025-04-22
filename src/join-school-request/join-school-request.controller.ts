@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseUUIDPipe, UsePipes } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseUUIDPipe, UsePipes, UseGuards, Request } from '@nestjs/common';
 import { UpdateSchoolJoinRequestDto, UpdateSchoolJoinRequestSchema } from './dto/update-school-join-request.dto';
 import { GetRequestsFilterDto, GetRequestsFilterSchema } from './dto/filter-school-join-request.dto';
 import { SchoolJoinRequestService } from './join-school-request.service';
 import { CreateJoinSchoolRequest, CreateJoinSchoolRequestDto } from './dto/join-school-request.dto';
 import { ZodValidationPipe } from 'src/common/pipes/zod-validation.pipe';
+import { PassportJswAuthGuard } from 'src/common/guards/passport-jwt.guard';
+import { AuthUserDto } from 'src/user/dto/user.dto';
 
 // If you don't have a ZodValidationPipe, you can use NestJS built-in ValidationPipe
 // import { ValidationPipe } from '@nestjs/common';
@@ -77,9 +79,12 @@ export class SchoolJoinRequestController {
   // UPDATE - Accept a request
   // PATCH /school-join-requests/:id/accept
   @Patch(':id/accept')
-  // Use ParseUUIDPipe or similar if needed
-  acceptRequest(@Param('id') id: string) {
-    return this.schoolJoinRequestService.acceptRequest(id);
+  @UseGuards(PassportJswAuthGuard)
+  acceptRequest(
+    @Request() request: { user: AuthUserDto },
+    @Param('id') id: string
+  ) {
+    return this.schoolJoinRequestService.acceptRequest(id , request.user);
   }
 
   // UPDATE - Reject a request

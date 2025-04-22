@@ -148,19 +148,21 @@ model School {
 
 // school member
 model SchoolStaff {
-  id          String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String  @db.ObjectId
-  schoolId    String  @db.ObjectId
-  role        String
-  email       String?
-  name        String?
-  phoneNumber String?
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId   String  @db.ObjectId
+  schoolId String  @db.ObjectId
+  role     String
+  email    String?
+  name     String?
+  phone    String?
 
   createAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, schoolId])
 }
 
 // class
@@ -196,10 +198,13 @@ model Class {
 
 // school member
 model Teacher {
-  id       String  @id @default(auto()) @map("_id") @db.ObjectId
-  schoolId String? @db.ObjectId
-  userId   String  @db.ObjectId
-
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  schoolId  String?  @db.ObjectId
+  userId    String   @db.ObjectId
+  email     String?
+  name      String?
+  phone     String?
+  image     String?
   createAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -207,6 +212,8 @@ model Teacher {
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   Class Class[]
+
+  @@unique([userId, schoolId])
 }
 
 model Student {
@@ -214,6 +221,10 @@ model Student {
   userId   String  @db.ObjectId
   classId  String? @db.ObjectId
   schoolId String? @db.ObjectId
+  email    String?
+  name     String?
+  phone    String?
+  image    String?
 
   createAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -221,6 +232,8 @@ model Student {
   class  Class?  @relation(fields: [classId], references: [id])
   school School? @relation(fields: [schoolId], references: [id])
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, schoolId])
 }
 
 enum ModuleType {
