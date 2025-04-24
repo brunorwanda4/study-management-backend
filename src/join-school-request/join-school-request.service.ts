@@ -76,28 +76,21 @@ export class SchoolJoinRequestService {
 
 
   // UPDATE - Accept a request (Specific status update + user role creation)
-  async acceptRequest(id: string, acceptingUser: AuthUserDto): Promise<{ token: string, acceptedRequest: SchoolJoinRequest }> {
+  async acceptRequest(id: string, acceptingUser: AuthUserDto) {
     if (!acceptingUser || !acceptingUser.id) {
       throw new UnauthorizedException("You must be logged in to accept school join requests.");
     }
 
-    const request = await this.findOne(id); // Find and Validate BEFORE transaction
-
-    if (request.status !== 'pending') {
-      throw new BadRequestException(`Sorry, this request is not pending. Current status: ${request.status}.`);
-    }
-    // Optional: Authorization Check (Add your logic here - e.g., check if acceptingUser is admin of schoolId)
-
     try {
-      // Use the functional transaction overload
-      const results = await this.dbService.$transaction(async (transactionalPrisma) => {
-        // Use the 'transactionalPrisma' client for all operations inside this block
+      const request = await this.findOne(id);
 
-        let createdRoleEntry; // Variable to hold the created role object
+      if (request.status !== 'pending') {
+        throw new BadRequestException(`Sorry, this request is not pending. Current status: ${request.status}.`);
+      }
+      await this.dbService.$transaction(async (transactionalPrisma) => {
 
-        // 4. Create the specific user role based on the request role
         if (request.role === 'Teacher') {
-          createdRoleEntry = await transactionalPrisma.teacher.create({ // Use transactionalPrisma
+          const teacher = await transactionalPrisma.teacher.create({ // Use transactionalPrisma
             data: {
               userId: acceptingUser.id,
               schoolId: request.schoolId,
@@ -107,8 +100,26 @@ export class SchoolJoinRequestService {
               image: acceptingUser.image,
             },
           });
+          await transactionalPrisma.schoolJoinRequest.update({ // Use transactionalPrisma
+            where: { id: request.id },
+            data: { status: 'accepted' },
+          });
+          const payload = {
+            sub: teacher.id,
+            schoolId: teacher.schoolId,
+            name: teacher.name,
+            email: teacher.email,
+          };
+
+          const token = this.jwtService.sign(payload);
+
+          return {
+            token,
+            teacher,
+          };
+
         } else if (request.role === 'Student') {
-          createdRoleEntry = await transactionalPrisma.student.create({ // Use transactionalPrisma
+          const student = await transactionalPrisma.student.create({ // Use transactionalPrisma
             data: {
               userId: acceptingUser.id,
               schoolId: request.schoolId, // Assuming schoolId is used even if optional in schema
@@ -116,11 +127,30 @@ export class SchoolJoinRequestService {
               name: request.name,
               phone: request.phone,
               image: acceptingUser.image,
-              // classId: ??? // Handle student class assignment if necessary
             },
           });
+          await transactionalPrisma.schoolJoinRequest.update({ // Use transactionalPrisma
+            where: { id: request.id },
+            data: { status: 'accepted' },
+          });
+
+          const payload = {
+            sub: student.id, // Subject: the user ID
+            schoolId: student.schoolId,
+            name: student.name,
+            email: student.email,
+            classId: student.classId,
+          };
+
+          const token = this.jwtService.sign(payload);
+
+          return {
+            token,
+            student,
+          };
+
         } else if (validSchoolStaffRoles.includes(request.role)) { // Check if the role is in the known staff roles list
-          createdRoleEntry = await transactionalPrisma.schoolStaff.create({ // Use transactionalPrisma
+          const schoolStaff = await transactionalPrisma.schoolStaff.create({ // Use transactionalPrisma
             data: {
               userId: acceptingUser.id,
               schoolId: request.schoolId,
@@ -131,44 +161,30 @@ export class SchoolJoinRequestService {
               image: acceptingUser.image,
             },
           });
+          await transactionalPrisma.schoolJoinRequest.update({ // Use transactionalPrisma
+            where: { id: request.id },
+            data: { status: 'accepted' },
+          });
+          const payload = {
+            sub: schoolStaff.id, // Subject: the user ID
+            schoolId: schoolStaff.schoolId,
+            name: schoolStaff.name,
+            email: schoolStaff.email,
+          };
+
+          const token = this.jwtService.sign(payload);
+
+          return {
+            token,
+            schoolStaff,
+          };
+
         }
         else {
           // If the role is not Teacher, Student, or a valid SchoolStaff role
           throw new BadRequestException(`Invalid or unknown role "${request.role}" specified in the join request.`);
         }
-
-
-        // 5. Update the join request status to 'accepted'
-        const acceptedRequest = await transactionalPrisma.schoolJoinRequest.update({ // Use transactionalPrisma
-          where: { id: request.id },
-          data: { status: 'accepted' },
-        });
-
-        // Return the results you need from the transaction
-        return { createdRoleEntry, acceptedRequest };
       });
-
-      // Destructure the results returned from the transaction function
-      const { acceptedRequest } = results;
-
-
-      // 6. Generate JWT token for the user whose request was accepted
-      // This happens AFTER the transaction is successful
-      const payload = {
-        sub: request.userId, // Subject: the user ID
-        schoolId: request.schoolId,
-        role: request.role, // The role they just got assigned in this school (Teacher, Student, or specific staff role)
-        name: request.name,
-        email: request.email,
-      };
-
-      const token = this.jwtService.sign(payload); // Sign the payload to create the token
-
-      // 7. Return the token and perhaps the accepted request details
-      return {
-        token,
-        acceptedRequest, // You might want to return the updated request object
-      };
 
     } catch (error) {
       // Handle specific Prisma errors, e.g., unique constraint violation
@@ -279,14 +295,14 @@ export class SchoolJoinRequestService {
                 }
               })
               const payload = {
-                sub: student.id, // Subject: the user ID
+                sub: student.id,
                 schoolId: student.schoolId,
                 name: student.name,
                 email: student.email,
                 classId: student.classId,
               };
 
-              const token = this.jwtService.sign(payload); 
+              const token = this.jwtService.sign(payload);
 
               return {
                 token,
@@ -314,7 +330,7 @@ export class SchoolJoinRequestService {
           const isCodeValidTeacher = await verifyCode(code, school.teachersCode);
           if (isCodeValidTeacher) {
             if (!school.requiredVerificationToJoinByCode) {
-              return this.dbService.teacher.create({
+              const teacher = await this.dbService.teacher.create({
                 data: {
                   schoolId: school.id,
                   name: user.name,
@@ -324,7 +340,21 @@ export class SchoolJoinRequestService {
                   image: user.image,
                 }
               })
+              const payload = {
+                sub: teacher.id,
+                schoolId: teacher.schoolId,
+                name: teacher.name,
+                email: teacher.email,
+              };
+
+              const token = this.jwtService.sign(payload);
+
+              return {
+                token,
+                teacher,
+              };
             }
+
             const request = await this.dbService.schoolJoinRequest.create({
               data: {
                 email: user.email,
