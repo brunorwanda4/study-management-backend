@@ -77,172 +77,105 @@ export class SchoolJoinRequestService {
 
   // UPDATE - Accept a request (Specific status update + user role creation)
   // Add 'return await' before calling the transaction
-  async acceptRequest(id: string, user: AuthUserDto): Promise<{ token: string, acceptedRequest: SchoolJoinRequest }> {
-    if (!user || !user.id) {
+  async acceptRequest(id: string, user: AuthUserDto): Promise<{ token: string; acceptedRequest: SchoolJoinRequest }> {
+    if (!user?.id) {
       throw new UnauthorizedException("You must be logged in to accept school join requests.");
     }
-
+  
     try {
       const [request, acceptingUser] = await Promise.all([
-        await this.findOne(id),
-        await this.dbService.user.findUnique({ where: { id : user.id } })
-      ])
-
+        this.findOne(id),
+        this.dbService.user.findUnique({ where: { id: user.id } }),
+      ]);
+  
       if (!acceptingUser) {
-        throw new BadRequestException("Sorry, your user id doesn't exit, please make sure you have account")
+        throw new BadRequestException("Sorry, your user ID doesn't exist. Please make sure you have an account.");
       }
-
+  
       if (request.status !== 'pending') {
-        throw new BadRequestException(`Sorry, this request is not pending. Current status: ${request.status}.`);
+        throw new BadRequestException(`This request is not pending. Current status: ${request.status}.`);
       }
-
+  
       if (acceptingUser.email !== request.email) {
-        throw new BadRequestException(`Sorry, this request is not yours`)
+        throw new BadRequestException("This request does not belong to you.");
       }
-
-      // FIX: Return the result of the transaction
-      return await this.dbService.$transaction(async (transactionalPrisma) => {
-
+  
+      return await this.dbService.$transaction(async (tx) => {
+        const commonData = {
+          userId: acceptingUser.id,
+          schoolId: request.schoolId,
+          email: request.email,
+          name: request.name,
+          phone: request.phone,
+          image: acceptingUser.image,
+        };
+  
+        let roleEntity;
+        let payload: any;
+  
         if (request.role === 'Teacher') {
-          const teacher = await transactionalPrisma.teacher.create({
-            data: {
-              userId: acceptingUser.id,
-              schoolId: request.schoolId,
-              email: request.email,
-              name: request.name,
-              phone: request.phone,
-              image: acceptingUser.image,
-            },
-          });
-          const acceptedRequest = await transactionalPrisma.schoolJoinRequest.update({
-            where: { id: request.id },
-            data: { status: 'accepted' },
-          });
-          await this.dbService.user.update({
-            where : { id: acceptingUser.id },
-            data : {
-              currentSchoolId : request.schoolId
-            }
-          })
-          const payload = {
-            sub: teacher.id,
-            schoolId: teacher.schoolId,
-            name: teacher.name,
-            email: teacher.email,
+          roleEntity = await tx.teacher.create({ data: commonData });
+          payload = {
+            sub: roleEntity.id,
+            schoolId: roleEntity.schoolId,
+            name: roleEntity.name,
+            email: roleEntity.email,
           };
-
-          const token = this.jwtService.sign(payload);
-          await this.dbService.user.update({
-            where: { id: acceptingUser.id },
-            data: { currentSchoolId: acceptedRequest.schoolId }
-          })
-
-          return {
-            token,
-            acceptedRequest,
-          };
-
         } else if (request.role === 'Student') {
-          const student = await transactionalPrisma.student.create({ // Use transactionalPrisma
-            data: {
-              userId: acceptingUser.id,
-              schoolId: request.schoolId, // Assuming schoolId is used even if optional in schema
-              email: request.email,
-              name: request.name,
-              phone: request.phone,
-              image: acceptingUser.image,
-            },
-          });
-          const acceptedRequest = await transactionalPrisma.schoolJoinRequest.update({ // Use transactionalPrisma
-            where: { id: request.id },
-            data: { status: 'accepted' },
-          });
-          await this.dbService.user.update({
-            where : { id: acceptingUser.id },
-            data : {
-              currentSchoolId : request.schoolId
-            }
-          })
-          const payload = {
-            sub: student.id, // Subject: the user ID
-            schoolId: student.schoolId,
-            name: student.name,
-            email: student.email,
-            classId: student.classId,
+          roleEntity = await tx.student.create({ data: commonData });
+          payload = {
+            sub: roleEntity.id,
+            schoolId: roleEntity.schoolId,
+            name: roleEntity.name,
+            email: roleEntity.email,
+            classId: roleEntity.classId,
           };
-
-          const token = this.jwtService.sign(payload);
-
-          return {
-            token,
-            acceptedRequest,
+        } else if (validSchoolStaffRoles.includes(request.role)) {
+          roleEntity = await tx.schoolStaff.create({ data: { ...commonData, role: request.role } });
+          payload = {
+            sub: roleEntity.id,
+            schoolId: roleEntity.schoolId,
+            name: roleEntity.name,
+            email: roleEntity.email,
           };
-
-        } else if (validSchoolStaffRoles.includes(request.role)) { // Check if the role is in the known staff roles list
-          const schoolStaff = await transactionalPrisma.schoolStaff.create({ // Use transactionalPrisma
-            data: {
-              userId: acceptingUser.id,
-              schoolId: request.schoolId,
-              role: request.role,
-              email: request.email,
-              name: request.name,
-              phone: request.phone,
-              image: acceptingUser.image,
-            },
-          });
-
-          const acceptedRequest = await transactionalPrisma.schoolJoinRequest.update({
-            where: { id: request.id },
-            data: { status: 'accepted' },
-          });
-          await this.dbService.user.update({
-            where : { id: acceptingUser.id },
-            data : {
-              currentSchoolId : request.schoolId
-            }
-          })
-          const payload = {
-            sub: schoolStaff.id, // Subject: the user ID
-            schoolId: schoolStaff.schoolId,
-            name: schoolStaff.name,
-            email: schoolStaff.email,
-          };
-
-          const token = this.jwtService.sign(payload);
-
-          return {
-            token,
-            acceptedRequest,
-          };
-
+        } else {
+          throw new BadRequestException(`Invalid or unknown role "${request.role}" specified.`);
         }
-        else {
-          throw new BadRequestException(`Invalid or unknown role "${request.role}" specified in the join request.`);
-        }
+  
+        const acceptedRequest = await tx.schoolJoinRequest.update({
+          where: { id: request.id },
+          data: { status: 'accepted' },
+        });
+  
+        await tx.user.update({
+          where: { id: acceptingUser.id },
+          data: { currentSchoolId: request.schoolId },
+        });
+  
+        const token = this.jwtService.sign(payload);
+  
+        return { token, acceptedRequest };
       });
-
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
           const target = (error.meta as any)?.target?.join(', ');
           let detail = `User already has a role in this school`;
           if (target) detail += `: constraint on ${target}`;
-          throw new BadRequestException(`${detail}`);
+          throw new BadRequestException(detail);
         }
-        // Catch other known Prisma errors if needed
-        throw new BadRequestException(`Database error while accepting request: ${error.message}`);
+        throw new BadRequestException(`Database error: ${error.message}`);
       } else if (error instanceof BadRequestException || error instanceof UnauthorizedException) {
-        // Re-throw specific HTTP errors
         throw error;
       }
-      // Catch any other unexpected errors
+  
       throw new BadRequestException({
-        message: 'Something went wrong while accepting the school request.',
-        // Consider masking the 'error' details in production environments
-        error: error,
+        message: 'An unexpected error occurred while accepting the school request.',
+        error,
       });
     }
   }
+  
 
   // rejectRequest remains the same as it's a single operation
   async rejectRequest(id: string): Promise<SchoolJoinRequest> {
