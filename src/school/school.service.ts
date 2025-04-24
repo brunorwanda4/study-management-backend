@@ -7,6 +7,7 @@ import { UploadService } from 'src/upload/upload.service';
 import { ModuleType, Prisma } from 'generated/prisma';
 import { SchoolAdministrationDto, SchoolAdministrationSchema } from './dto/school-administration.dto';
 import { sendAdministrationJoinRequestsDto } from 'src/join-school-request/dto/join-school-request.dto';
+import { hashCode } from 'src/common/utils/hash.util';
 
 @Injectable()
 export class SchoolService {
@@ -40,14 +41,18 @@ export class SchoolService {
                 const uploaded = await this.uploadService.uploadBase64Image(logo, 'logos');
                 imageUrl = uploaded.secure_url;
             }
-
+            const studentsCode = await hashCode(generateCode());
+            const teachersCode = await hashCode(generateCode());
+            const schoolStaffsCode = await hashCode(generateCode());
             return await this.dbService.school.create({
                 data: {
                     name,
                     creatorId,
                     logo: imageUrl,
                     username,
-                    code: generateCode(),
+                    studentsCode,
+                    teachersCode,
+                    schoolStaffsCode,
                     ...rest,
                 }
             })
@@ -86,7 +91,7 @@ export class SchoolService {
             const schools = await this.dbService.school.findMany({ where });
 
             // Omit the code from the returned objects if it should be private
-            const safeSchool = schools.map(({ code, ...rest }) => rest);
+            const safeSchool = schools.map(({ studentsCode, teachersCode, schoolStaffsCode, ...rest }) => rest);
             return safeSchool;
         } catch (error) {
             throw new NotFoundException({
@@ -97,13 +102,13 @@ export class SchoolService {
     }
 
 
-    async findOne(id?: string, username?: string, code?: string) {
-        if (!id && !code && !username) {
-            throw new BadRequestException('You must provide id, code or username to find a school');
+    async findOne(id?: string, username?: string,) {
+        if (!id && !username) {
+            throw new BadRequestException('You must provide id or username to find a school');
         }
         // Use findFirst or findUnique based on which fields are truly unique in your schema
         // Assuming id, username, and code are unique based on your create logic
-        const where = id ? { id } : code ? { code } : { username };
+        const where = id ? { id } : { username };
 
         try {
             const school = await this.dbService.school.findUnique({
@@ -117,7 +122,7 @@ export class SchoolService {
             });
 
             if (!school) {
-                const identifier = id || code || username;
+                const identifier = id || username;
                 throw new NotFoundException(`School not found with identifier: ${identifier}`);
             }
             return school; // Return the safe school object
@@ -591,5 +596,4 @@ export class SchoolService {
 
     //   return `${folder}/${publicId}`;
     // }
-
 }

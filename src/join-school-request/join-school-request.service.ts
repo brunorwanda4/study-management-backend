@@ -14,9 +14,8 @@ import { UpdateSchoolJoinRequestDto } from './dto/update-school-join-request.dto
 import { GetRequestsFilterDto } from './dto/filter-school-join-request.dto';
 import { CreateJoinSchoolRequestDto } from './dto/join-school-request.dto';
 import { validSchoolStaffRoles } from 'src/lib/context/school.context';
-
-// Assuming AuthUserDto is defined somewhere
-// import { AuthUserDto } from '../auth/dto/auth-user.dto';
+import { JoinSchoolDto, JoinSchoolSchema } from './dto/join-school-schema';
+import { verifyCode } from 'src/common/utils/hash.util';
 
 
 @Injectable()
@@ -105,6 +104,7 @@ export class SchoolJoinRequestService {
               email: request.email,
               name: request.name,
               phone: request.phone,
+              image: acceptingUser.image,
             },
           });
         } else if (request.role === 'Student') {
@@ -115,6 +115,7 @@ export class SchoolJoinRequestService {
               email: request.email,
               name: request.name,
               phone: request.phone,
+              image: acceptingUser.image,
               // classId: ??? // Handle student class assignment if necessary
             },
           });
@@ -127,6 +128,7 @@ export class SchoolJoinRequestService {
               email: request.email,
               name: request.name,
               phone: request.phone,
+              image: acceptingUser.image,
             },
           });
         }
@@ -156,8 +158,8 @@ export class SchoolJoinRequestService {
         sub: request.userId, // Subject: the user ID
         schoolId: request.schoolId,
         role: request.role, // The role they just got assigned in this school (Teacher, Student, or specific staff role)
-        name : request.name,
-        email : request.email,
+        name: request.name,
+        email: request.email,
       };
 
       const token = this.jwtService.sign(payload); // Sign the payload to create the token
@@ -184,12 +186,10 @@ export class SchoolJoinRequestService {
         // Re-throw our specific bad requests or unauthorized errors
         throw error;
       }
-      // Catch any other unexpected errors
-      console.error('Unexpected error accepting school join request:', error); // Log the unexpected error
       // Throw a generic error or re-throw the original error if debugging
       throw new BadRequestException({
         message: 'Something went wrong while accepting the school request.',
-        error: error.message, // Expose error message for debugging, or mask in production
+        error: error, // Expose error message for debugging, or mask in production
       });
     }
   }
@@ -252,5 +252,121 @@ export class SchoolJoinRequestService {
       where: { id },
       data,
     });
+  }
+
+  async joinSchoolByCodeAndUsername(user: AuthUserDto, data: JoinSchoolDto) {
+    const validation = JoinSchoolSchema.safeParse(data);
+    if (!validation.success) throw new BadRequestException("Validation data for join school");
+    const { username, code } = validation.data;
+
+    try {
+      const school = await this.dbService.school.findUnique({ where: { username } });
+      if (!school) throw new BadRequestException("School not found, check if you write username correctly")
+      switch (user.role) {
+        case "STUDENT":
+          if (!school.studentsCode) throw new BadRequestException(`${school.name} doesn't have join school student code, use other method`)
+          const isCodeValid = await verifyCode(code, school.studentsCode);
+          if (isCodeValid) {
+            if (!school.requiredVerificationToJoinByCode) {
+              const student = await this.dbService.student.create({
+                data: {
+                  schoolId: school.id,
+                  name: user.name,
+                  email: user.email,
+                  phone: user.phone,
+                  userId: user.id,
+                  image: user.image,
+                }
+              })
+              const payload = {
+                sub: student.id, // Subject: the user ID
+                schoolId: student.schoolId,
+                name: student.name,
+                email: student.email,
+                classId: student.classId,
+              };
+
+              const token = this.jwtService.sign(payload); 
+
+              return {
+                token,
+                student,
+              };
+            }
+            const request = await this.dbService.schoolJoinRequest.create({
+              data: {
+                email: user.email,
+                name: user.name,
+                phone: user.phone,
+                fromUser: true,
+                schoolId: school.id,
+                userId: user.id,
+                role: "STUDENT",
+              },
+            });
+            return { request };
+          }
+          else {
+            throw new BadRequestException("Invalid code, please check if you write it correctly")
+          }
+        case "TEACHER":
+          if (!school.teachersCode) throw new BadRequestException(`${school.name} doesn't have join school teacher code, use other method`)
+          const isCodeValidTeacher = await verifyCode(code, school.teachersCode);
+          if (isCodeValidTeacher) {
+            if (!school.requiredVerificationToJoinByCode) {
+              return this.dbService.teacher.create({
+                data: {
+                  schoolId: school.id,
+                  name: user.name,
+                  email: user.email,
+                  phone: user.phone,
+                  userId: user.id,
+                  image: user.image,
+                }
+              })
+            }
+            const request = await this.dbService.schoolJoinRequest.create({
+              data: {
+                email: user.email,
+                name: user.name,
+                phone: user.phone,
+                fromUser: true,
+                schoolId: school.id,
+                userId: user.id,
+                role: "TEACHER",
+              },
+            });
+            return request;
+          } else {
+            throw new BadRequestException("Invalid code, please check if you write it correctly")
+          }
+        case "SCHOOLSTAFF":
+          if (!school.schoolStaffsCode) throw new BadRequestException(`${school.name} doesn't have join school staff code, use other method`)
+          const isCodeValidStaff = await verifyCode(code, school.schoolStaffsCode);
+          if (isCodeValidStaff) {
+            const request = await this.dbService.schoolJoinRequest.create({
+              data: {
+                email: user.email,
+                name: user.name,
+                phone: user.phone,
+                schoolId: school.id,
+                fromUser: true,
+                userId: user.id,
+                role: "SCHOOLSTAFF",
+              },
+            });
+            return request;
+          } else {
+            throw new BadRequestException("Invalid code, please check if you write it correctly")
+          }
+        default:
+          throw new BadRequestException("Invalid role, please check if you write it correctly")
+      }
+    } catch (error) {
+      throw new NotFoundException({
+        message: 'Something went wrong while retrieving schools',
+        error: error.message, // Provide error message in response
+      });
+    }
   }
 }

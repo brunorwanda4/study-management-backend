@@ -40,6 +40,7 @@ export class AuthService {
       name: user.name,
       username : user.username,
       email: user.email,
+      phone : user.phone ?? undefined,
       image: user?.image ?? undefined,
       role: user.role ?? undefined,
     };

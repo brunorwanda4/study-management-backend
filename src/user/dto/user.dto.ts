@@ -47,6 +47,7 @@ export const AuthUserSchema = z.object({
     username : z.string().min(1),
     role: UserRoleEnum.optional(),
     image: z.string().optional(),
+    phone : z.string().optional(),
     accessToken: z.string().optional(),
 })
 

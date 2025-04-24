@@ -6,10 +6,7 @@ import { CreateJoinSchoolRequest, CreateJoinSchoolRequestDto } from './dto/join-
 import { ZodValidationPipe } from 'src/common/pipes/zod-validation.pipe';
 import { PassportJswAuthGuard } from 'src/common/guards/passport-jwt.guard';
 import { AuthUserDto } from 'src/user/dto/user.dto';
-
-// If you don't have a ZodValidationPipe, you can use NestJS built-in ValidationPipe
-// import { ValidationPipe } from '@nestjs/common';
-// and remove the Zod schema exports from DTOs, using class-validator/transformer instead.
+import { JoinSchoolDto, JoinSchoolSchema } from './dto/join-school-schema';
 
 @Controller('school-join-requests')
 export class SchoolJoinRequestController {
@@ -28,6 +25,16 @@ export class SchoolJoinRequestController {
   @UsePipes(new ZodValidationPipe(GetRequestsFilterSchema))
   findAll(@Query() filterDto: GetRequestsFilterDto) {
     return this.schoolJoinRequestService.findAll(filterDto);
+  }
+
+
+  @Post('/join')
+  @UseGuards(PassportJswAuthGuard)
+  async join(
+    @Request() request: { user: AuthUserDto },
+    @Body(new ZodValidationPipe(JoinSchoolSchema)) joinSchoolDto: JoinSchoolDto,
+  ) {
+    return await this.schoolJoinRequestService.joinSchoolByCodeAndUsername(request.user, joinSchoolDto);
   }
 
   // READ - Get a single request by ID
@@ -66,8 +73,6 @@ export class SchoolJoinRequestController {
     return this.schoolJoinRequestService.findByEmail(email);
   }
 
-
-
   // UPDATE - Update request fields
   // PATCH /school-join-requests/:id
   @Patch(':id')
@@ -84,7 +89,7 @@ export class SchoolJoinRequestController {
     @Request() request: { user: AuthUserDto },
     @Param('id') id: string
   ) {
-    return this.schoolJoinRequestService.acceptRequest(id , request.user);
+    return this.schoolJoinRequestService.acceptRequest(id, request.user);
   }
 
   // UPDATE - Reject a request
@@ -94,7 +99,6 @@ export class SchoolJoinRequestController {
   rejectRequest(@Param('id') id: string) {
     return this.schoolJoinRequestService.rejectRequest(id);
   }
-
 
   // DELETE - Remove a request
   // DELETE /school-join-requests/:id

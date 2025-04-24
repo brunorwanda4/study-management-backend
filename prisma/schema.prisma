@@ -102,40 +102,46 @@ enum AttendanceSystem {
 }
 
 model School {
-  id                    String            @id @default(auto()) @map("_id") @db.ObjectId
-  creatorId             String            @db.ObjectId
+  id                               String            @id @default(auto()) @map("_id") @db.ObjectId
+  creatorId                        String            @db.ObjectId
   // basic information
-  username              String            @unique
-  logo                  String?
-  name                  String
-  code                  String            @unique
-  description           String?
-  schoolType            SchoolType
-  curriculum            String[]
-  educationLevel        String[]
-  assessmentTypes       String[]
-  schoolMembers         SchoolMembers?
-  accreditationNumber   String?
-  affiliation           String?
+  username                         String            @unique
+  logo                             String?
+  name                             String
+  description                      String?
+  schoolType                       SchoolType
+  curriculum                       String[]
+  educationLevel                   String[]
+  assessmentTypes                  String[]
+  schoolMembers                    SchoolMembers?
+  accreditationNumber              String?
+  affiliation                      String?
   // location
-  address               Address?
-  contact               Contact?
-  website               String?
-  socialMedia           SocialMedial[]
+  address                          Address?
+  contact                          Contact?
+  website                          String?
+  socialMedia                      SocialMedial[]
   // students
-  studentCapacity       Int?
-  uniformRequired       Boolean?
-  attendanceSystem      AttendanceSystem?
-  scholarshipAvailable  Boolean?
+  studentCapacity                  Int?
+  uniformRequired                  Boolean?
+  attendanceSystem                 AttendanceSystem?
+  scholarshipAvailable             Boolean?
   // facilities
-  classrooms            Int?
-  library               Boolean?
-  labs                  String[]
-  sportsExtracurricular String[]
-  onlineClasses         Boolean?
+  classrooms                       Int?
+  library                          Boolean?
+  labs                             String[]
+  sportsExtracurricular            String[]
+  onlineClasses                    Boolean?
+  // security
+  studentsCode                     String?
+  teachersCode                     String?
+  schoolStaffsCode                 String?
+  password                         String?
+  requiredVerificationToJoinByCode Boolean           @default(false)
+
   // meta data
-  createAt              DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
+  createAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   SchoolStaff       SchoolStaff[]
   Class             Class[]
@@ -153,6 +159,7 @@ model SchoolStaff {
   email    String?
   name     String?
   phone    String?
+  image    String?
 
   createAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -263,6 +270,7 @@ model SchoolJoinRequest {
   name      String?
   email     String?
   phone     String?
+  fromUser  Boolean  @default(false)
   status    String   @default("pending")
   createAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
