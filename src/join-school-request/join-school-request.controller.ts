@@ -6,7 +6,7 @@ import { CreateJoinSchoolRequest, CreateJoinSchoolRequestDto } from './dto/join-
 import { ZodValidationPipe } from 'src/common/pipes/zod-validation.pipe';
 import { PassportJswAuthGuard } from 'src/common/guards/passport-jwt.guard';
 import { AuthUserDto } from 'src/user/dto/user.dto';
-import { JoinSchoolDto, JoinSchoolSchema } from './dto/join-school-schema';
+import { JoinSchoolDto, JoinSchoolSchema } from '../school/dto/join-school-schema';
 
 @Controller('school-join-requests')
 export class SchoolJoinRequestController {

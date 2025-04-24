@@ -8,13 +8,13 @@ import { DbService } from '../db/db.service';
 // Import the types from Prisma Client
 import { JwtService } from '@nestjs/jwt';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import { SchoolJoinRequest } from 'generated/prisma';
+import { SchoolJoinRequest, SchoolStaff, Student, Teacher } from 'generated/prisma';
 import { AuthUserDto } from 'src/user/dto/user.dto';
 import { UpdateSchoolJoinRequestDto } from './dto/update-school-join-request.dto';
 import { GetRequestsFilterDto } from './dto/filter-school-join-request.dto';
 import { CreateJoinSchoolRequestDto } from './dto/join-school-request.dto';
 import { validSchoolStaffRoles } from 'src/lib/context/school.context';
-import { JoinSchoolDto, JoinSchoolSchema } from './dto/join-school-schema';
+import { JoinSchoolDto, JoinSchoolSchema } from '../school/dto/join-school-schema';
 import { verifyCode } from 'src/common/utils/hash.util';
 
 
@@ -76,7 +76,8 @@ export class SchoolJoinRequestService {
 
 
   // UPDATE - Accept a request (Specific status update + user role creation)
-  async acceptRequest(id: string, acceptingUser: AuthUserDto) {
+  // Add 'return await' before calling the transaction
+  async acceptRequest(id: string, acceptingUser: AuthUserDto): Promise<{ token: string, acceptedRequest: SchoolJoinRequest }> {
     if (!acceptingUser || !acceptingUser.id) {
       throw new UnauthorizedException("You must be logged in to accept school join requests.");
     }
@@ -87,10 +88,16 @@ export class SchoolJoinRequestService {
       if (request.status !== 'pending') {
         throw new BadRequestException(`Sorry, this request is not pending. Current status: ${request.status}.`);
       }
-      await this.dbService.$transaction(async (transactionalPrisma) => {
+
+      if (acceptingUser.email !== request.email) {
+        throw new BadRequestException(`Sorry, this request is not yours`)
+      }
+
+      // FIX: Return the result of the transaction
+      return await this.dbService.$transaction(async (transactionalPrisma) => {
 
         if (request.role === 'Teacher') {
-          const teacher = await transactionalPrisma.teacher.create({ // Use transactionalPrisma
+          const teacher = await transactionalPrisma.teacher.create({
             data: {
               userId: acceptingUser.id,
               schoolId: request.schoolId,
@@ -100,7 +107,7 @@ export class SchoolJoinRequestService {
               image: acceptingUser.image,
             },
           });
-          await transactionalPrisma.schoolJoinRequest.update({ // Use transactionalPrisma
+          const acceptedRequest = await transactionalPrisma.schoolJoinRequest.update({
             where: { id: request.id },
             data: { status: 'accepted' },
           });
@@ -115,7 +122,7 @@ export class SchoolJoinRequestService {
 
           return {
             token,
-            teacher,
+            acceptedRequest,
           };
 
         } else if (request.role === 'Student') {
@@ -129,7 +136,7 @@ export class SchoolJoinRequestService {
               image: acceptingUser.image,
             },
           });
-          await transactionalPrisma.schoolJoinRequest.update({ // Use transactionalPrisma
+          const acceptedRequest = await transactionalPrisma.schoolJoinRequest.update({ // Use transactionalPrisma
             where: { id: request.id },
             data: { status: 'accepted' },
           });
@@ -146,7 +153,7 @@ export class SchoolJoinRequestService {
 
           return {
             token,
-            student,
+            acceptedRequest,
           };
 
         } else if (validSchoolStaffRoles.includes(request.role)) { // Check if the role is in the known staff roles list
@@ -154,14 +161,15 @@ export class SchoolJoinRequestService {
             data: {
               userId: acceptingUser.id,
               schoolId: request.schoolId,
-              role: request.role, // Store the specific staff role (HeadTeacher, Librarian, etc.)
+              role: request.role,
               email: request.email,
               name: request.name,
               phone: request.phone,
               image: acceptingUser.image,
             },
           });
-          await transactionalPrisma.schoolJoinRequest.update({ // Use transactionalPrisma
+
+          const acceptedRequest = await transactionalPrisma.schoolJoinRequest.update({
             where: { id: request.id },
             data: { status: 'accepted' },
           });
@@ -176,36 +184,34 @@ export class SchoolJoinRequestService {
 
           return {
             token,
-            schoolStaff,
+            acceptedRequest,
           };
 
         }
         else {
-          // If the role is not Teacher, Student, or a valid SchoolStaff role
           throw new BadRequestException(`Invalid or unknown role "${request.role}" specified in the join request.`);
         }
       });
 
     } catch (error) {
-      // Handle specific Prisma errors, e.g., unique constraint violation
       if (error instanceof PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
           const target = (error.meta as any)?.target?.join(', ');
-          // Be specific in the error message based on which unique constraint failed if possible
           let detail = `User already has a role in this school`;
           if (target) detail += `: constraint on ${target}`;
           throw new BadRequestException(`${detail}`);
         }
-        // Handle other Prisma errors if necessary
+        // Catch other known Prisma errors if needed
         throw new BadRequestException(`Database error while accepting request: ${error.message}`);
       } else if (error instanceof BadRequestException || error instanceof UnauthorizedException) {
-        // Re-throw our specific bad requests or unauthorized errors
+        // Re-throw specific HTTP errors
         throw error;
       }
-      // Throw a generic error or re-throw the original error if debugging
+      // Catch any other unexpected errors
       throw new BadRequestException({
         message: 'Something went wrong while accepting the school request.',
-        error: error, // Expose error message for debugging, or mask in production
+        // Consider masking the 'error' details in production environments
+        error: error,
       });
     }
   }
@@ -255,6 +261,7 @@ export class SchoolJoinRequestService {
     return this.dbService.schoolJoinRequest.findMany({
       where: { email }, // Prisma handles null comparison
       include: { school: true, user: true }, // Maybe include details here
+      orderBy: { updatedAt: 'desc' }
     });
   }
 
