@@ -1,15 +1,19 @@
+import { FindByUserIdAndSchoolIdQuery } from './../school-staff/dto/find-school-staff-by-userId-schoolId';
+import { SchoolAuthPayloadDto, SchoolAuthPayloadSchema } from './dto/auth-payloads';
 import { Injectable, UnauthorizedException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { AuthUserDto, LoginUserDto, LoginUserSchema, RegisterUserDto, CreateUserSchema, CreateUserDto } from 'src/user/dto/user.dto';
 import { verifyPassword } from 'src/common/utils/hash.util';
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from './../user/user.service';
 import { User } from 'generated/prisma';
+import { SchoolStaffService } from 'src/school-staff/school-staff.service';
 @Injectable()
 export class AuthService {
   constructor(
     @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
+    private readonly schoolStaffService: SchoolStaffService
   ) { }
 
   async authenticate(input: LoginUserDto): Promise<AuthUserDto> {
@@ -38,19 +42,42 @@ export class AuthService {
     const payload: AuthUserDto = {
       id: user.id,
       name: user.name,
-      username : user.username,
+      username: user.username,
       email: user.email,
-      phone : user.phone ?? undefined,
+      phone: user.phone ?? undefined,
       image: user?.image ?? undefined,
       role: user.role ?? undefined,
     };
 
     const accessToken = await this.jwtService.signAsync(payload);
-
-    return {
+    const token = {
       ...payload,
       accessToken,
     };
+    if (user.currentSchoolId) {
+      switch (user.role) {
+        case "SCHOOLSTAFF":
+          const schoolStaff = await this.schoolStaffService.findByUserIdAndSchoolId(user.id, user.currentSchoolId);
+          if (!schoolStaff) { return token }
+
+          const SchoolPayload: SchoolAuthPayloadDto = {
+            sub: schoolStaff.id, // Subject: the user ID
+            schoolId: schoolStaff.schoolId,
+            name: user.name,
+            email: user.email,
+          };
+
+          const schoolAccessToken = this.jwtService.sign(SchoolPayload);
+          return {
+            ...payload,
+            accessToken,
+            schoolAccessToken
+          }
+          // TODO to add other user school token
+        default: { return token }
+      }
+    }
+    return token;
   }
 
   async register(input: RegisterUserDto) {

@@ -6,19 +6,24 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './jwt.strategy';
 import { UserModule } from 'src/user/user.module';
+import { SchoolStaffModule } from 'src/school-staff/school-staff.module';
+import { SchoolStaffService } from 'src/school-staff/school-staff.service';
+import { DbModule } from 'src/db/db.module';
 
 @Module({
   imports: [
-    forwardRef(() => UserModule), // ✅ circular fix
+    forwardRef(() => UserModule),
     PassportModule,
     JwtModule.register({
       global: true,
       secret: process.env.SECRET_KEY,
       signOptions: { expiresIn: '7d' }
-    })
+    }),
+    DbModule,
+    SchoolStaffModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, LocalStrategy, JwtStrategy],
+  providers: [AuthService,SchoolStaffService, LocalStrategy, JwtStrategy],
   exports: [AuthService]
 })
 export class AuthModule { }

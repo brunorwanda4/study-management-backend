@@ -77,13 +77,20 @@ export class SchoolJoinRequestService {
 
   // UPDATE - Accept a request (Specific status update + user role creation)
   // Add 'return await' before calling the transaction
-  async acceptRequest(id: string, acceptingUser: AuthUserDto): Promise<{ token: string, acceptedRequest: SchoolJoinRequest }> {
-    if (!acceptingUser || !acceptingUser.id) {
+  async acceptRequest(id: string, user: AuthUserDto): Promise<{ token: string, acceptedRequest: SchoolJoinRequest }> {
+    if (!user || !user.id) {
       throw new UnauthorizedException("You must be logged in to accept school join requests.");
     }
 
     try {
-      const request = await this.findOne(id);
+      const [request, acceptingUser] = await Promise.all([
+        await this.findOne(id),
+        await this.dbService.user.findUnique({ where: { id : user.id } })
+      ])
+
+      if (!acceptingUser) {
+        throw new BadRequestException("Sorry, your user id doesn't exit, please make sure you have account")
+      }
 
       if (request.status !== 'pending') {
         throw new BadRequestException(`Sorry, this request is not pending. Current status: ${request.status}.`);
@@ -111,6 +118,12 @@ export class SchoolJoinRequestService {
             where: { id: request.id },
             data: { status: 'accepted' },
           });
+          await this.dbService.user.update({
+            where : { id: acceptingUser.id },
+            data : {
+              currentSchoolId : request.schoolId
+            }
+          })
           const payload = {
             sub: teacher.id,
             schoolId: teacher.schoolId,
@@ -119,6 +132,10 @@ export class SchoolJoinRequestService {
           };
 
           const token = this.jwtService.sign(payload);
+          await this.dbService.user.update({
+            where: { id: acceptingUser.id },
+            data: { currentSchoolId: acceptedRequest.schoolId }
+          })
 
           return {
             token,
@@ -140,7 +157,12 @@ export class SchoolJoinRequestService {
             where: { id: request.id },
             data: { status: 'accepted' },
           });
-
+          await this.dbService.user.update({
+            where : { id: acceptingUser.id },
+            data : {
+              currentSchoolId : request.schoolId
+            }
+          })
           const payload = {
             sub: student.id, // Subject: the user ID
             schoolId: student.schoolId,
@@ -173,6 +195,12 @@ export class SchoolJoinRequestService {
             where: { id: request.id },
             data: { status: 'accepted' },
           });
+          await this.dbService.user.update({
+            where : { id: acceptingUser.id },
+            data : {
+              currentSchoolId : request.schoolId
+            }
+          })
           const payload = {
             sub: schoolStaff.id, // Subject: the user ID
             schoolId: schoolStaff.schoolId,

@@ -58,26 +58,29 @@ type SocialMedial {
 }
 
 model User {
-  id        String    @id @default(auto()) @map("_id") @db.ObjectId
-  email     String    @unique
-  name      String
-  username  String    @unique
-  password  String?
-  role      UserRole?
-  image     String?
-  phone     String?
-  gender    Gender?
-  age       Age?
-  address   Address?
-  bio       String?
-  createAt  DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  email           String    @unique
+  name            String
+  username        String    @unique
+  password        String?
+  role            UserRole?
+  image           String?
+  phone           String?
+  gender          Gender?
+  age             Age?
+  address         Address?
+  bio             String?
+  // other data
+  currentSchoolId String?   @db.ObjectId
+  createAt        DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  SchoolStaff SchoolStaff[]
-  Class       Class[]
-  Teacher     Teacher[]
-  Student     Student[]
+  school School? @relation(fields: [currentSchoolId], references: [id])
 
+  SchoolStaff       SchoolStaff[]
+  Class             Class[]
+  Teacher           Teacher[]
+  Student           Student[]
   SchoolJoinRequest SchoolJoinRequest[]
 }
 
@@ -148,6 +151,7 @@ model School {
   Teacher           Teacher[]
   Student           Student[]
   SchoolJoinRequest SchoolJoinRequest[]
+  User              User[]
 }
 
 // school member
