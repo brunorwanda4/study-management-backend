@@ -248,6 +248,9 @@ model Student {
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, schoolId])
+  @@unique([userId, classId])
+  @@unique([schoolId, classId])
+  @@unique([userId, email])
 }
 
 enum ModuleType {
