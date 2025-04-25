@@ -4,9 +4,9 @@ import { AuthUserDto, CreateUserDto, CreateUserSchema, RegisterUserDto, UpdateUs
 import { DbService } from 'src/db/db.service';
 import { hashPassword } from 'src/common/utils/hash.util';
 import { generateUsername } from 'src/common/utils/characters.util';
-import { Prisma, UserRole } from '@prisma/client';
 import { UploadService } from 'src/upload/upload.service';
 import { HttpException } from '@nestjs/common';
+import { Prisma } from 'generated/prisma';
 @Injectable()
 export class UserService {
   constructor(
