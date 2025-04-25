@@ -81,25 +81,25 @@ export class SchoolJoinRequestService {
     if (!user?.id) {
       throw new UnauthorizedException("You must be logged in to accept school join requests.");
     }
-  
+
     try {
       const [request, acceptingUser] = await Promise.all([
         this.findOne(id),
         this.dbService.user.findUnique({ where: { id: user.id } }),
       ]);
-  
+
       if (!acceptingUser) {
         throw new BadRequestException("Sorry, your user ID doesn't exist. Please make sure you have an account.");
       }
-  
+
       if (request.status !== 'pending') {
         throw new BadRequestException(`This request is not pending. Current status: ${request.status}.`);
       }
-  
+
       if (acceptingUser.email !== request.email) {
         throw new BadRequestException("This request does not belong to you.");
       }
-  
+
       return await this.dbService.$transaction(async (tx) => {
         const commonData = {
           userId: acceptingUser.id,
@@ -108,11 +108,13 @@ export class SchoolJoinRequestService {
           name: request.name,
           phone: request.phone,
           image: acceptingUser.image,
+          age: acceptingUser.age,
+          gender: acceptingUser.gender,
         };
-  
+
         let roleEntity;
         let payload: any;
-  
+
         if (request.role === 'Teacher') {
           roleEntity = await tx.teacher.create({ data: commonData });
           payload = {
@@ -129,6 +131,10 @@ export class SchoolJoinRequestService {
             name: roleEntity.name,
             email: roleEntity.email,
             classId: roleEntity.classId,
+            age: acceptingUser.age,
+            gender: acceptingUser.gender,
+            image: acceptingUser.image,
+
           };
         } else if (validSchoolStaffRoles.includes(request.role)) {
           roleEntity = await tx.schoolStaff.create({ data: { ...commonData, role: request.role } });
@@ -141,19 +147,19 @@ export class SchoolJoinRequestService {
         } else {
           throw new BadRequestException(`Invalid or unknown role "${request.role}" specified.`);
         }
-  
+
         const acceptedRequest = await tx.schoolJoinRequest.update({
           where: { id: request.id },
           data: { status: 'accepted' },
         });
-  
+
         await tx.user.update({
           where: { id: acceptingUser.id },
           data: { currentSchoolId: request.schoolId },
         });
-  
+
         const token = this.jwtService.sign(payload);
-  
+
         return { token, acceptedRequest };
       });
     } catch (error) {
@@ -168,14 +174,14 @@ export class SchoolJoinRequestService {
       } else if (error instanceof BadRequestException || error instanceof UnauthorizedException) {
         throw error;
       }
-  
+
       throw new BadRequestException({
         message: 'An unexpected error occurred while accepting the school request.',
         error,
       });
     }
   }
-  
+
 
   // rejectRequest remains the same as it's a single operation
   async rejectRequest(id: string): Promise<SchoolJoinRequest> {
@@ -244,8 +250,12 @@ export class SchoolJoinRequestService {
     const { username, code } = validation.data;
 
     try {
-      const school = await this.dbService.school.findUnique({ where: { username } });
-      if (!school) throw new BadRequestException("School not found, check if you write username correctly")
+      const [school, requestUser] = await Promise.all([
+        this.dbService.school.findUnique({ where: { username } }),
+        this.dbService.user.findUnique({ where: { id: user.id } })
+      ]);
+      if (!school) throw new BadRequestException("School not found, check if you write username correctly");
+      if (!requestUser) throw new BadRequestException("Sorry, Your account doesn't exit, create new ones");
       switch (user.role) {
         case "STUDENT":
           if (!school.studentsCode) throw new BadRequestException(`${school.name} doesn't have join school student code, use other method`)
@@ -255,11 +265,13 @@ export class SchoolJoinRequestService {
               const student = await this.dbService.student.create({
                 data: {
                   schoolId: school.id,
-                  name: user.name,
-                  email: user.email,
-                  phone: user.phone,
-                  userId: user.id,
-                  image: user.image,
+                  name: requestUser.name,
+                  email: requestUser.email,
+                  phone: requestUser.phone,
+                  userId: requestUser.id,
+                  image: requestUser.image,
+                  age: requestUser.age,
+                  gender: requestUser.gender,
                 }
               })
               const payload = {
@@ -301,11 +313,13 @@ export class SchoolJoinRequestService {
               const teacher = await this.dbService.teacher.create({
                 data: {
                   schoolId: school.id,
-                  name: user.name,
-                  email: user.email,
-                  phone: user.phone,
-                  userId: user.id,
-                  image: user.image,
+                  name: requestUser.name,
+                  email: requestUser.email,
+                  phone: requestUser.phone,
+                  userId: requestUser.id,
+                  image: requestUser.image,
+                  gender: requestUser.gender,
+                  age: requestUser.age,
                 }
               })
               const payload = {
@@ -344,12 +358,12 @@ export class SchoolJoinRequestService {
           if (isCodeValidStaff) {
             const request = await this.dbService.schoolJoinRequest.create({
               data: {
-                email: user.email,
-                name: user.name,
-                phone: user.phone,
+                email: requestUser.email,
+                name: requestUser.name,
+                phone: requestUser.phone,
                 schoolId: school.id,
                 fromUser: true,
-                userId: user.id,
+                userId: requestUser.id,
                 role: "SCHOOLSTAFF",
               },
             });

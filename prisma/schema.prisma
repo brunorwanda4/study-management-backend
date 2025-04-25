@@ -156,15 +156,16 @@ model School {
 
 // school member
 model SchoolStaff {
-  id       String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId   String  @db.ObjectId
-  schoolId String  @db.ObjectId
-  role     String
-  email    String?
-  name     String?
-  phone    String?
-  image    String?
-
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  schoolId  String   @db.ObjectId
+  role      String
+  email     String?
+  name      String?
+  phone     String?
+  image     String?
+  gender    Gender?
+  age       Age?
   createAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -207,13 +208,16 @@ model Class {
 
 // school member
 model Teacher {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  schoolId  String?  @db.ObjectId
-  userId    String   @db.ObjectId
-  email     String?
-  name      String?
-  phone     String?
-  image     String?
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  schoolId String? @db.ObjectId
+  userId   String  @db.ObjectId
+  email    String?
+  name     String?
+  phone    String?
+  image    String?
+  gender   Gender?
+  age      Age?
+
   createAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -226,15 +230,16 @@ model Teacher {
 }
 
 model Student {
-  id       String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId   String  @db.ObjectId
-  classId  String? @db.ObjectId
-  schoolId String? @db.ObjectId
-  email    String?
-  name     String?
-  phone    String?
-  image    String?
-
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  classId   String?  @db.ObjectId
+  schoolId  String?  @db.ObjectId
+  email     String?
+  name      String?
+  phone     String?
+  image     String?
+  gender    Gender?
+  age       Age?
   createAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
 
