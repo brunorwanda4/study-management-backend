@@ -6,6 +6,7 @@ export const SchoolAuthPayloadSchema = z.object({
     name: z.string().min(1),
     email: z.string().min(1),
     classId: z.string().optional(),
+    role : z.string(),
 })
 
 export type SchoolAuthPayloadDto = z.infer<typeof SchoolAuthPayloadSchema>

@@ -65,6 +65,7 @@ export class AuthService {
             schoolId: schoolStaff.schoolId,
             name: user.name,
             email: user.email,
+            role : schoolStaff.role,
           };
 
           const schoolAccessToken = this.jwtService.sign(SchoolPayload);
