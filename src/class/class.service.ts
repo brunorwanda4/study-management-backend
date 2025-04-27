@@ -101,11 +101,11 @@ export class ClassService {
         where.classType = classType;
       }
 
-      const classes = await this.dbService.class.findMany({ where });
+      return await this.dbService.class.findMany({ where , orderBy : { createAt: 'desc' } });
 
-      // Omit the code from the returned objects if it should be private
-      const safeClasses = classes.map(({ code, ...rest }) => rest);
-      return safeClasses;
+      // // Omit the code from the returned objects if it should be private
+      // const safeClasses = classes.map(({ code, ...rest }) => rest);
+      // return safeClasses;
 
     } catch (error) {
       console.error('Error retrieving classes:', error);
