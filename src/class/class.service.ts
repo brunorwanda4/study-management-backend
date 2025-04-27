@@ -158,9 +158,13 @@ export class ClassService {
       const classFound = await this.dbService.class.findUnique({
         where,
         include: {
-          user: true, teacher: true, students: true, school: {
+          user: true, teacher: {
             select: {
-              name: true, logo: true, website: true, id: true, contact : true
+              name: true, image: true, email: true, userId: true
+            }
+          }, students: true, school: {
+            select: {
+            username: true,  name: true, logo: true, website: true, id: true, contact: true
             },
           }
         }
