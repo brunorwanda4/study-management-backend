@@ -1,9 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CreateClassDto, CreateClassSchema, ClassDto, ClassTypeEnum } from './dto/class.dto';
 import { DbService } from 'src/db/db.service';
 import { UploadService } from 'src/upload/upload.service';
 import { generateCode, generateUsername } from 'src/common/utils/characters.util';
 import { z } from 'zod';
+import { CreateClassInput, CreateClassSchema } from './dto/create-class.dto';
+import { ClassDto } from './dto/class.dto';
+import { ClassType } from 'generated/prisma';
 
 @Injectable()
 export class ClassService {
@@ -12,13 +14,13 @@ export class ClassService {
     private readonly uploadService: UploadService,
   ) { }
 
-  async create(createClassDto: CreateClassDto) {
+  async create(createClassDto: CreateClassInput) {
     const validation = CreateClassSchema.safeParse(createClassDto);
     if (!validation.success) {
       throw new BadRequestException('Invalid class data provided');
     }
 
-    const { name, schoolId, creatorId, classTeacherId, image: initialImage, ...rest } = validation.data;
+    const { name, schoolId, creatorId, classTeacherId, image: initialImage, username, ...rest } = validation.data;
     if (!creatorId && !schoolId && !classTeacherId) {
       throw new BadRequestException("Invalid Create of classes because it any connections of user")
     }
@@ -83,7 +85,7 @@ export class ClassService {
     }
   }
 
-  async findAll(schoolId?: string, creatorId?: string, classType?: ClassDto) {
+  async findAll(schoolId?: string, creatorId?: string, classType?: ClassType) {
     try {
       const where: any = {};
 
@@ -163,7 +165,7 @@ export class ClassService {
     }
 
     // Cast to a more specific type if you have a defined UpdateClassDto
-    const updateData = updateClassDto as Partial<CreateClassDto>;
+    const updateData = updateClassDto as Partial<CreateClassInput>;
 
 
     try {

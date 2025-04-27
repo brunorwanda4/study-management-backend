@@ -1,20 +1,25 @@
 import { ZodValidationPipe } from './../common/pipes/zod-validation.pipe';
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { ClassService } from './class.service';
-import { CreateClassDto, CreateClassSchema } from './dto/class.dto';
+import {  CreateClassInput, CreateClassSchema } from './dto/create-class.dto';
+import { ClassType } from 'generated/prisma';
 
 @Controller('class')
 export class ClassController {
   constructor(private readonly classService: ClassService) { }
 
   @Post()
-  create(@Body(new ZodValidationPipe(CreateClassSchema)) createClassDto: CreateClassDto) {
+  create(@Body(new ZodValidationPipe(CreateClassSchema)) createClassDto: CreateClassInput) {
     return this.classService.create(createClassDto);
   }
 
   @Get()
-  findAll() {
-    return this.classService.findAll();
+  findAll(
+    @Query('schoolId') schoolId?: string,
+    @Query('creatorId') creatorId?: string,
+    @Query('classType') classType?: ClassType,
+  ) {
+    return this.classService.findAll(schoolId, creatorId, classType);
   }
 
   @Get(':id')

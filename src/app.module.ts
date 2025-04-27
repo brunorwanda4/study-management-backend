@@ -14,8 +14,18 @@ import { SchoolStaffModule } from './school-staff/school-staff.module';
 
 configureCloudinary();
 @Module({
-  imports: [UserModule, DbModule, AuthModule, UploadModule, SchoolModule, ClassModule, ModuleModule, JoinSchoolRequestModule, SchoolStaffModule],
+  imports: [
+    UserModule,
+    DbModule,
+    AuthModule,
+    UploadModule,
+    SchoolModule,
+    ClassModule,
+    ModuleModule,
+    JoinSchoolRequestModule,
+    SchoolStaffModule
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

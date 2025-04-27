@@ -204,6 +204,8 @@ model Class {
   Student Student[]
 
   Module Module[]
+
+  SchoolJoinRequest SchoolJoinRequest[]
 }
 
 // school member
@@ -279,6 +281,7 @@ model SchoolJoinRequest {
   name      String?
   email     String?
   phone     String?
+  classId   String?  @db.ObjectId
   fromUser  Boolean  @default(false)
   status    String   @default("pending")
   createAt  DateTime @default(now())
@@ -286,6 +289,7 @@ model SchoolJoinRequest {
 
   school School @relation(fields: [schoolId], references: [id])
   user   User?  @relation(fields: [userId], references: [id])
+  class  Class? @relation(fields: [classId], references: [id])
 
   @@unique([userId, schoolId, email])
   @@map("school_join_requests")
