@@ -198,10 +198,10 @@ model Class {
   createAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  school  School?   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  user    User?     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  teacher Teacher?  @relation(fields: [classTeacherId], references: [id], onDelete: Cascade)
-  Student Student[]
+  school   School?   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user     User?     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  teacher  Teacher?  @relation(fields: [classTeacherId], references: [id], onDelete: Cascade)
+  students Student[]
 
   Module Module[]
 
@@ -291,6 +291,6 @@ model SchoolJoinRequest {
   user   User?  @relation(fields: [userId], references: [id])
   class  Class? @relation(fields: [classId], references: [id])
 
-  @@unique([userId, schoolId, email])
+  @@unique([email, schoolId])
   @@map("school_join_requests")
 }

@@ -12,7 +12,7 @@ import { SchoolJoinRequest, SchoolStaff, Student, Teacher } from 'generated/pris
 import { AuthUserDto } from 'src/user/dto/user.dto';
 import { UpdateSchoolJoinRequestDto } from './dto/update-school-join-request.dto';
 import { GetRequestsFilterDto } from './dto/filter-school-join-request.dto';
-import { CreateJoinSchoolRequestDto } from './dto/join-school-request.dto';
+import { CreateJoinSchoolRequest, CreateJoinSchoolRequestDto } from './dto/join-school-request.dto';
 import { validSchoolStaffRoles } from 'src/lib/context/school.context';
 import { JoinSchoolDto, JoinSchoolSchema } from '../school/dto/join-school-schema';
 import { verifyCode } from 'src/common/utils/hash.util';
@@ -27,12 +27,44 @@ export class SchoolJoinRequestService {
 
   // CREATE (assuming you have this)
   async create(data: CreateJoinSchoolRequestDto): Promise<SchoolJoinRequest> {
-    // Add validation logic here before creating (e.g., check if user/email already requested for this school)
-    // Prisma's @@unique constraint will also help here, throwing an error on duplicate
+    // Validate the data here if needed
+    const validation = CreateJoinSchoolRequest.safeParse(data);
+    if (!validation.success) {
+      throw new BadRequestException("Validation data for create school join request");
+    }
+    // Check if the user already has a request for this school
+    const [existingRequest, exitUser] = await Promise.all([
+      this.dbService.schoolJoinRequest.findFirst({
+        where: {
+          email: data.email,
+          schoolId: data.schoolId,
+          status: 'pending',
+          fromUser: false,
+        },
+      }),
+      this.dbService.user.findUnique({
+        where: {
+          email: data.email,
+        },
+      }),
+    ])
+
+    if (existingRequest) {
+      const remove = await this.remove(existingRequest.id);
+      if (remove) {
+        return this.dbService.schoolJoinRequest.create({
+          data: {
+            userId: exitUser?.id,
+            ...data,
+            status: 'pending',
+          },
+        });
+      }
+    }
     return this.dbService.schoolJoinRequest.create({
       data: {
         ...data,
-        status: 'pending', // Default status
+        status: 'pending',
       },
     });
   }
@@ -102,20 +134,21 @@ export class SchoolJoinRequestService {
 
       return await this.dbService.$transaction(async (tx) => {
         const commonData = {
-          userId: acceptingUser.id,
           schoolId: request.schoolId,
-          email: request.email,
-          name: request.name,
-          phone: request.phone,
+          userId: acceptingUser.id,
+          email: acceptingUser.email,
+          name: acceptingUser.name,
+          phone: acceptingUser.phone,
           image: acceptingUser.image,
           age: acceptingUser.age,
           gender: acceptingUser.gender,
+          classId: request.classId,
         };
 
         let roleEntity;
         let payload: any;
 
-        if (request.role === 'Teacher') {
+        if (request.role === 'TEACHER') {
           roleEntity = await tx.teacher.create({ data: commonData });
           payload = {
             sub: roleEntity.id,
@@ -123,14 +156,14 @@ export class SchoolJoinRequestService {
             name: roleEntity.name,
             email: roleEntity.email,
           };
-        } else if (request.role === 'Student') {
+        } else if (request.role === 'STUDENT') {
           roleEntity = await tx.student.create({ data: commonData });
           payload = {
             sub: roleEntity.id,
-            schoolId: roleEntity.schoolId,
+            schoolId: request.schoolId,
             name: roleEntity.name,
             email: roleEntity.email,
-            classId: roleEntity.classId,
+            classId: request.classId,
             age: acceptingUser.age,
             gender: acceptingUser.gender,
             image: acceptingUser.image,

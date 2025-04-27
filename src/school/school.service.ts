@@ -88,7 +88,7 @@ export class SchoolService {
                 where.creatorId = creatorId;
             }
 
-            const schools = await this.dbService.school.findMany({ where });
+            const schools = await this.dbService.school.findMany({ where, orderBy: { createAt: 'desc' } });
 
             // Omit the code from the returned objects if it should be private
             const safeSchool = schools.map(({ studentsCode, teachersCode, schoolStaffsCode, ...rest }) => rest);
@@ -199,7 +199,7 @@ export class SchoolService {
                         schoolId: school.id,
                         code: generateCode(),
                         classType: 'SchoolClass',
-                        educationLever: 'Primary Education',
+                        educationLever: 'Primary',
                         curriculum: 'REB',
                     });
 
@@ -276,7 +276,7 @@ export class SchoolService {
                             schoolId: school.id,
                             code: generateCode(),
                             classType: 'SchoolClass',
-                            educationLever: 'Advanced Level', // Use 'Advanced Level' as the education lever identifier
+                            educationLever: 'ALevel', // Use 'Advanced Level' as the education lever identifier
                             curriculum: 'REB', // Assign curriculum
                         });
 
@@ -337,7 +337,7 @@ export class SchoolService {
                             // classId will be added after classes are created
                             code: generateCode(),
                             subjectType: ModuleType.General,
-                            curriculum: 'TVET Curriculum',
+                            curriculum: 'TVET',
                         });
 
                         if (tvetOptionSubjects && tvetOptionSubjects.length > 0) {
@@ -347,7 +347,7 @@ export class SchoolService {
                                     // classId will be added after classes are created
                                     code: generateCode(),
                                     subjectType: ModuleType.Optional,
-                                    curriculum: 'TVET Curriculum',
+                                    curriculum: 'TVET',
                                 });
                             });
                         }

@@ -5,7 +5,7 @@ import { generateCode, generateUsername } from 'src/common/utils/characters.util
 import { z } from 'zod';
 import { CreateClassInput, CreateClassSchema } from './dto/create-class.dto';
 import { ClassDto } from './dto/class.dto';
-import { ClassType } from 'generated/prisma';
+import { ClassType, Teacher } from 'generated/prisma';
 
 @Injectable()
 export class ClassService {
@@ -101,7 +101,7 @@ export class ClassService {
         where.classType = classType;
       }
 
-      return await this.dbService.class.findMany({ where , orderBy : { createAt: 'desc' } });
+      return await this.dbService.class.findMany({ where, orderBy: { createAt: 'desc' } });
 
       // // Omit the code from the returned objects if it should be private
       // const safeClasses = classes.map(({ code, ...rest }) => rest);
@@ -115,6 +115,36 @@ export class ClassService {
       });
     }
   }
+
+  async findAllBySchoolIdNeededData(schoolId: string) {
+    try {
+      const classes = await this.dbService.class.findMany({
+        where: { schoolId },
+        orderBy: { createAt: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          teacher: true,
+          image: true,
+          _count: {
+            select: {
+              students: true,
+            }
+          },
+        }
+      });
+
+
+      return classes
+    } catch (error) {
+      console.error('Error retrieving classes by school ID:', error);
+      throw new NotFoundException({
+        message: 'Something went wrong while retrieving classes by school ID',
+        error,
+      });
+    }
+  }
+
 
 
   async findOne(id?: string, username?: string, code?: string) {

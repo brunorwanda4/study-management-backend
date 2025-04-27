@@ -22,6 +22,13 @@ export class ClassController {
     return this.classService.findAll(schoolId, creatorId, classType);
   }
 
+  @Get('/school/:schoolId/view-data')
+  findAllBySchoolIdNeededData(
+    @Param('schoolId') schoolId: string,
+  ) {
+    return this.classService.findAllBySchoolIdNeededData(schoolId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.classService.findOne(id);
