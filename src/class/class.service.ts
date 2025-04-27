@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { DbService } from 'src/db/db.service';
 import { UploadService } from 'src/upload/upload.service';
 import { generateCode, generateUsername } from 'src/common/utils/characters.util';
-import { tuple, z } from 'zod';
+import { string, tuple, z } from 'zod';
 import { CreateClassInput, CreateClassSchema } from './dto/create-class.dto';
 import { ClassDto } from './dto/class.dto';
 import { ClassType, Teacher } from 'generated/prisma';
@@ -158,13 +158,24 @@ export class ClassService {
       const classFound = await this.dbService.class.findUnique({
         where,
         include: {
-          user: true, teacher: {
+          user: true,
+          Module: {
+            include: {
+              teacher: true
+            },
+            select:
+            {
+              name: true,
+              id: true
+            }
+          },
+          teacher: {
             select: {
               name: true, image: true, email: true, userId: true
             }
           }, students: true, school: {
             select: {
-            username: true,  name: true, logo: true, website: true, id: true, contact: true
+              username: true, name: true, logo: true, website: true, id: true, contact: true
             },
           }
         }
