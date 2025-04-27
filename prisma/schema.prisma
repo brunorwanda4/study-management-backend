@@ -226,7 +226,8 @@ model Teacher {
   school School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  Class Class[]
+  Class  Class[]
+  Module Module[]
 
   @@unique([userId, schoolId])
 }
@@ -266,11 +267,13 @@ model Module {
   curriculum    String?
   copyright     String?
   learningHours Int?
+  teacherId     String?     @db.ObjectId
 
   createAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  class Class? @relation(fields: [classId], references: [id])
+  teacher Teacher? @relation(fields: [teacherId], references: [id])
+  class   Class?   @relation(fields: [classId], references: [id])
 }
 
 model SchoolJoinRequest {
