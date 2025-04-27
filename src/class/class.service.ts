@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { DbService } from 'src/db/db.service';
 import { UploadService } from 'src/upload/upload.service';
 import { generateCode, generateUsername } from 'src/common/utils/characters.util';
-import { z } from 'zod';
+import { tuple, z } from 'zod';
 import { CreateClassInput, CreateClassSchema } from './dto/create-class.dto';
 import { ClassDto } from './dto/class.dto';
 import { ClassType, Teacher } from 'generated/prisma';
@@ -155,7 +155,16 @@ export class ClassService {
     const where = id ? { id } : code ? { code } : { username };
 
     try {
-      const classFound = await this.dbService.class.findUnique({ where });
+      const classFound = await this.dbService.class.findUnique({
+        where,
+        include: {
+          user: true, teacher: true, students: true, school: {
+            select: {
+              name: true, logo: true, website: true, id: true, contact : true
+            },
+          }
+        }
+      });
 
       if (!classFound) {
         const identifier = id || code || username;
@@ -163,8 +172,12 @@ export class ClassService {
       }
 
       // Omit the code from the returned object if it should be private
-      const { code: classCode, ...safeClass } = classFound;
-      return safeClass;
+      if (classFound.classType === "Private") {
+        const { code: classCode, ...safeClass } = classFound;
+        return safeClass;
+      }
+
+      return classFound
 
     } catch (error) {
       // Re-throw known exceptions or wrap others in a generic NotFoundException

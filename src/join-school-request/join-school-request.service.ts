@@ -89,6 +89,8 @@ export class SchoolJoinRequestService {
 
     return this.dbService.schoolJoinRequest.findMany({
       where,
+      orderBy: { createAt: "desc" },
+      include: filters ? { school: filters.schoolId ? false : true, user: true } : null
       // Optionally add include: { school: true, user: true } to fetch relations
       // Optionally add orderBy, skip, take for pagination
     });

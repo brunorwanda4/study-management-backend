@@ -27,7 +27,6 @@ export class SchoolJoinRequestController {
     return this.schoolJoinRequestService.findAll(filterDto);
   }
 
-
   @Post('/join')
   @UseGuards(PassportJswAuthGuard)
   async join(
