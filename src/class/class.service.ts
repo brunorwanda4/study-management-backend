@@ -160,23 +160,35 @@ export class ClassService {
         include: {
           user: true,
           Module: {
-            include: {
-              teacher: true
-            },
-            select:
-            {
+            select: {
               name: true,
-              id: true
+              id: true,
+              teacher: {
+                select: {
+                  id: true, // Add teacher fields you need here
+                  name: true, // example
+                }
+              }
             }
           },
           teacher: {
             select: {
-              name: true, image: true, email: true, userId: true
+              name: true,
+              image: true,
+              email: true,
+              userId: true
             }
-          }, students: true, school: {
+          },
+          students: true,
+          school: {
             select: {
-              username: true, name: true, logo: true, website: true, id: true, contact: true
-            },
+              username: true,
+              name: true,
+              logo: true,
+              website: true,
+              id: true,
+              contact: true
+            }
           }
         }
       });

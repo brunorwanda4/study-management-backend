@@ -1,3 +1,4 @@
+import { SchoolService } from './../school/school.service';
 import { FindByUserIdAndSchoolIdQuery } from './../school-staff/dto/find-school-staff-by-userId-schoolId';
 import { SchoolAuthPayloadDto, SchoolAuthPayloadSchema } from './dto/auth-payloads';
 import { Injectable, UnauthorizedException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
@@ -13,7 +14,8 @@ export class AuthService {
     @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
-    private readonly schoolStaffService: SchoolStaffService
+    private readonly schoolStaffService: SchoolStaffService,
+    private readonly schoolService: SchoolService
   ) { }
 
   async authenticate(input: LoginUserDto): Promise<AuthUserDto> {
@@ -59,13 +61,20 @@ export class AuthService {
         case "SCHOOLSTAFF":
           const schoolStaff = await this.schoolStaffService.findByUserIdAndSchoolId(user.id, user.currentSchoolId);
           if (!schoolStaff) { return token }
+          const school = await this.schoolService.findOne(schoolStaff.schoolId);
+          if (!school) { return token }
 
           const SchoolPayload: SchoolAuthPayloadDto = {
             sub: schoolStaff.id, // Subject: the user ID
             schoolId: schoolStaff.schoolId,
             name: user.name,
             email: user.email,
-            role : schoolStaff.role,
+            role: schoolStaff.role,
+            schoolDescription: school.description ?? undefined,
+            schoolEmail: school.contact?.email,
+            schoolName: school.name,
+            schoolUsername: school.username,
+            schoolLogo: school.logo,
           };
 
           const schoolAccessToken = this.jwtService.sign(SchoolPayload);
@@ -74,7 +83,7 @@ export class AuthService {
             accessToken,
             schoolAccessToken
           }
-          // TODO to add other user school token
+        // TODO to add other user school token
         default: { return token }
       }
     }

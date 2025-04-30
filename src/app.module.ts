@@ -11,6 +11,7 @@ import { ClassModule } from './class/class.module';
 import { ModuleModule } from './module/module.module';
 import { JoinSchoolRequestModule } from './join-school-request/join-school-request.module';
 import { SchoolStaffModule } from './school-staff/school-staff.module';
+import { StudentsModule } from './students/students.module';
 
 configureCloudinary();
 @Module({
@@ -23,7 +24,8 @@ configureCloudinary();
     ClassModule,
     ModuleModule,
     JoinSchoolRequestModule,
-    SchoolStaffModule
+    SchoolStaffModule,
+    StudentsModule
   ],
   controllers: [AppController],
   providers: [AppService],

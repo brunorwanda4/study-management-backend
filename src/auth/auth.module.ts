@@ -9,6 +9,10 @@ import { UserModule } from 'src/user/user.module';
 import { SchoolStaffModule } from 'src/school-staff/school-staff.module';
 import { SchoolStaffService } from 'src/school-staff/school-staff.service';
 import { DbModule } from 'src/db/db.module';
+import { SchoolService } from 'src/school/school.service';
+import { SchoolModule } from 'src/school/school.module';
+import { UploadService } from 'src/upload/upload.service';
+import { UploadModule } from 'src/upload/upload.module';
 
 @Module({
   imports: [
@@ -21,9 +25,11 @@ import { DbModule } from 'src/db/db.module';
     }),
     DbModule,
     SchoolStaffModule,
+    SchoolModule,
+    UploadModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService,SchoolStaffService, LocalStrategy, JwtStrategy],
+  providers: [AuthService, SchoolStaffService, UploadService, SchoolService, LocalStrategy, JwtStrategy],
   exports: [AuthService]
 })
 export class AuthModule { }
