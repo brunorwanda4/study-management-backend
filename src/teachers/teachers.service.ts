@@ -92,7 +92,7 @@ export class TeachersService {
           user: { select: { id: true, username: true, name: true, image: true } },
           school: { select: { id: true, name: true, logo: true } },
           // Optionally include counts or basic info for Class/Module
-          // _count: { select: { Class: true, Module: true } }
+          _count: { select: { Class: true, Module: true } }
         },
         orderBy: {
           createAt: 'desc'
