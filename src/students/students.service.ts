@@ -59,15 +59,11 @@ export class StudentsService {
       return newStudent;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        // Check for unique constraint violation (userId_schoolId)
         if (error.code === 'P2002') {
           throw new ConflictException('A student profile for this user already exists in this school.');
         }
-        // Check for foreign key constraint failure (e.g., userId, schoolId, or classId doesn't exist)
         if (error.code === 'P2025') {
-             // This error message might need refinement depending on which relation failed.
-             // You might need separate checks before the create call if more specific errors are needed.
-             throw new NotFoundException('Failed to create student: Related user, school, or class not found.');
+          throw new NotFoundException('Failed to create student: Related user, school, or class not found.');
         }
       }
       // Log the detailed error for debugging
@@ -85,16 +81,14 @@ export class StudentsService {
    * @throws InternalServerErrorException for database errors.
    */
   async findAll(schoolId?: string, userId?: string) {
-    // Basic validation for IDs if provided
     if (schoolId && !/^[0-9a-fA-F]{24}$/.test(schoolId)) {
-        throw new BadRequestException('Invalid School ID format.'); // Use BadRequest for invalid format
+      throw new BadRequestException('Invalid School ID format.');
     }
-     if (userId && !/^[0-9a-fA-F]{24}$/.test(userId)) {
-        throw new BadRequestException('Invalid User ID format.'); // Use BadRequest for invalid format
+    if (userId && !/^[0-9a-fA-F]{24}$/.test(userId)) {
+      throw new BadRequestException('Invalid User ID format.');
     }
 
     try {
-      // Build the where clause conditionally
       const where: Prisma.StudentWhereInput = {};
       if (schoolId) {
         where.schoolId = schoolId;
@@ -108,7 +102,7 @@ export class StudentsService {
           class: {
             select: {
               name: true,
-              username: true, // Assuming Class has username
+              username: true,
               id: true
             },
           },
@@ -122,20 +116,20 @@ export class StudentsService {
           },
           school: { // Include school info
             select: {
-                id: true,
-                name: true,
-                logo : true
+              id: true,
+              name: true,
+              logo: true
             }
           }
         },
         orderBy: {
-            createAt: 'desc'
+          createAt: 'desc'
         }
       });
 
       return students; // Returns empty array if none found, which is valid.
     } catch (error) {
-       console.error("Error finding students:", error);
+      console.error("Error finding students:", error);
       throw new InternalServerErrorException('An error occurred while retrieving students.');
     }
   }
@@ -149,9 +143,9 @@ export class StudentsService {
    * @throws InternalServerErrorException for database errors.
    */
   async findOne(id: string) {
-     // Validate ID format
+    // Validate ID format
     if (!/^[0-9a-fA-F]{24}$/.test(id)) {
-        throw new BadRequestException('Invalid Student ID format.'); // Use BadRequest for invalid format
+      throw new BadRequestException('Invalid Student ID format.'); // Use BadRequest for invalid format
     }
 
     try {
@@ -166,9 +160,9 @@ export class StudentsService {
       return student;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-         throw new NotFoundException(`Student with ID '${id}' not found.`);
+        throw new NotFoundException(`Student with ID '${id}' not found.`);
       }
-       console.error(`Error finding student with ID ${id}:`, error);
+      console.error(`Error finding student with ID ${id}:`, error);
       throw new InternalServerErrorException('An error occurred while retrieving the student.');
     }
   }
@@ -183,15 +177,15 @@ export class StudentsService {
    * @throws InternalServerErrorException for other database errors.
    */
   async update(id: string, updateStudentDto: UpdateStudentDto) {
-     // Validate ID format
+    // Validate ID format
     if (!/^[0-9a-fA-F]{24}$/.test(id)) {
-        throw new BadRequestException('Invalid Student ID format.'); // Use BadRequest for invalid format
+      throw new BadRequestException('Invalid Student ID format.'); // Use BadRequest for invalid format
     }
 
     // Validate DTO (usually done via Pipe)
-     const validationResult = updateStudentSchema.safeParse(updateStudentDto);
+    const validationResult = updateStudentSchema.safeParse(updateStudentDto);
     if (!validationResult.success) {
-       throw new BadRequestException({
+      throw new BadRequestException({
         message: 'Validation failed',
         errors: validationResult.error.flatten().fieldErrors,
       });
@@ -204,20 +198,20 @@ export class StudentsService {
 
     // Handle class update: connect if classId is a string, disconnect if null, do nothing if undefined
     if (classId !== undefined) { // Check if classId was present in the DTO
-        if (classId === null) {
-            // Explicitly disconnect the relation if null is passed
-            dataToUpdate.class = { disconnect: true };
-        } else {
-            // Connect to the new class if a valid ID string is passed
-            dataToUpdate.class = { connect: { id: classId } };
-        }
+      if (classId === null) {
+        // Explicitly disconnect the relation if null is passed
+        dataToUpdate.class = { disconnect: true };
+      } else {
+        // Connect to the new class if a valid ID string is passed
+        dataToUpdate.class = { connect: { id: classId } };
+      }
     }
     // --- End Fix for Update ---
 
 
-     // Prevent updating userId or schoolId if necessary (business logic decision)
-     // delete dataToUpdate.userId; // Prisma prevents this by default in StudentUpdateInput
-     // delete dataToUpdate.schoolId; // Prisma prevents this by default in StudentUpdateInput
+    // Prevent updating userId or schoolId if necessary (business logic decision)
+    // delete dataToUpdate.userId; // Prisma prevents this by default in StudentUpdateInput
+    // delete dataToUpdate.schoolId; // Prisma prevents this by default in StudentUpdateInput
 
     try {
       // Perform the update. findUniqueOrThrow is implicitly handled by update operation's where clause.
@@ -225,7 +219,7 @@ export class StudentsService {
       const updatedStudent = await this.db.student.update({
         where: { id },
         data: dataToUpdate, // Use the constructed data object
-         include: { // Return updated data with relations
+        include: { // Return updated data with relations
           class: { select: { id: true, name: true, username: true } },
           user: { select: { id: true, username: true, name: true, image: true } },
           school: { select: { id: true, name: true } }
@@ -233,19 +227,19 @@ export class StudentsService {
       });
       return updatedStudent;
     } catch (error) {
-       if (error instanceof Prisma.PrismaClientKnownRequestError) {
-            if (error.code === 'P2025') {
-                // Error P2025 can mean the student to update wasn't found,
-                // OR a related record to connect (like classId) wasn't found.
-                // Checking the meta target can sometimes give clues, but a generic message might be safer.
-                const target = (error.meta?.target as string[])?.join(', '); // Attempt to get target field
-                if (target?.includes('connect')) {
-                     throw new NotFoundException(`Failed to update student: Related record (e.g., Class) not found.`);
-                } else {
-                    throw new NotFoundException(`Student with ID '${id}' not found.`);
-                }
-            }
-       }
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2025') {
+          // Error P2025 can mean the student to update wasn't found,
+          // OR a related record to connect (like classId) wasn't found.
+          // Checking the meta target can sometimes give clues, but a generic message might be safer.
+          const target = (error.meta?.target as string[])?.join(', '); // Attempt to get target field
+          if (target?.includes('connect')) {
+            throw new NotFoundException(`Failed to update student: Related record (e.g., Class) not found.`);
+          } else {
+            throw new NotFoundException(`Student with ID '${id}' not found.`);
+          }
+        }
+      }
       console.error(`Error updating student with ID ${id}:`, error);
       throw new InternalServerErrorException('Could not update student. Please try again later.');
     }
@@ -260,9 +254,9 @@ export class StudentsService {
    * @throws InternalServerErrorException for other database errors.
    */
   async remove(id: string) {
-      // Validate ID format
+    // Validate ID format
     if (!/^[0-9a-fA-F]{24}$/.test(id)) {
-        throw new BadRequestException('Invalid Student ID format.'); // Use BadRequest for invalid format
+      throw new BadRequestException('Invalid Student ID format.'); // Use BadRequest for invalid format
     }
 
     try {
@@ -273,10 +267,10 @@ export class StudentsService {
       });
       return { message: `Successfully deleted student with ID '${id}'.`, deletedStudent };
     } catch (error) {
-       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-         throw new NotFoundException(`Student with ID '${id}' not found.`);
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new NotFoundException(`Student with ID '${id}' not found.`);
       }
-       console.error(`Error removing student with ID ${id}:`, error);
+      console.error(`Error removing student with ID ${id}:`, error);
       throw new InternalServerErrorException('Could not remove student. Please try again later.');
     }
   }

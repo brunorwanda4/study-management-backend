@@ -48,7 +48,7 @@ export class SchoolStaffService {
   async findByUserIdAndSchoolId(userId: string, schoolId: string): Promise<SchoolStaff | null> {
     return this.dbService.schoolStaff.findUnique({
       where: {
-        userId_schoolId: { // This uses the unique constraint name from your schema
+        userId_schoolId: { 
           userId: userId,
           schoolId: schoolId,
         },

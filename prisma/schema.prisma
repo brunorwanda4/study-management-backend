@@ -24,7 +24,6 @@ enum UserRole {
 enum Gender {
   FEMALE
   MALE
-  OTHER
 }
 
 type Age {

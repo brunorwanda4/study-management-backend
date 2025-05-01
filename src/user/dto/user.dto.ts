@@ -54,7 +54,7 @@ export const AuthUserSchema = z.object({
 
 export type AuthUserDto = z.infer<typeof AuthUserSchema>;
 
-export const GenderEnum = z.enum(["FEMALE", "MALE", "OTHER"], {
+export const GenderEnum = z.enum(["FEMALE", "MALE"], {
     required_error: "Gender is required",
     invalid_type_error: "Invalid gender",
 });

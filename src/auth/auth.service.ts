@@ -50,7 +50,6 @@ export class AuthService {
       image: user?.image ?? undefined,
       role: user.role ?? undefined,
     };
-
     const accessToken = await this.jwtService.signAsync(payload);
     const token = {
       ...payload,
@@ -65,7 +64,7 @@ export class AuthService {
           if (!school) { return token }
 
           const SchoolPayload: SchoolAuthPayloadDto = {
-            sub: schoolStaff.id, // Subject: the user ID
+            sub: schoolStaff.id,
             schoolId: schoolStaff.schoolId,
             name: user.name,
             email: user.email,

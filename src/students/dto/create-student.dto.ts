@@ -15,5 +15,4 @@ export const createStudentSchema = z.object({
   age: AgeSchema.optional(),
 });
 
-// Type inferred from the schema
 export type CreateStudentDto = z.infer<typeof createStudentSchema>;
