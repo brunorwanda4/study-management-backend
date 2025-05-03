@@ -48,6 +48,7 @@ export class StudentsController {
   findAll(
     @Query('schoolId') schoolId?: string, // Get optional schoolId from query string (?schoolId=...)
     @Query('userId') userId?: string, // Get optional userId from query string (?userId=...)
+    @Query('classId') classId?: string, // Get optional userId from query string (?userId=...)
   ) {
      // Optional: Add validation for query parameter formats if needed here or in the service
      if (schoolId && !/^[0-9a-fA-F]{24}$/.test(schoolId)) {
@@ -56,8 +57,11 @@ export class StudentsController {
      if (userId && !/^[0-9a-fA-F]{24}$/.test(userId)) {
         throw new BadRequestException('Invalid User ID format in query parameter.');
      }
+     if (classId && !/^[0-9a-fA-F]{24}$/.test(classId)) {
+        throw new BadRequestException('Invalid class ID format in query parameter.');
+     }
     // Pass the query parameters to the service method
-    return this.studentsService.findAll(schoolId, userId);
+    return this.studentsService.findAll(schoolId, userId,classId);
   }
 
   /**
