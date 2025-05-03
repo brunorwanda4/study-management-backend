@@ -55,17 +55,19 @@ export class SchoolJoinRequestService {
         return this.dbService.schoolJoinRequest.create({
           data: {
             userId: exitUser?.id,
-            name : exitUser?.name,
-            ...data,
+            name: exitUser?.name,
             status: 'pending',
+            ...data,
           },
         });
       }
     }
     return this.dbService.schoolJoinRequest.create({
       data: {
-        ...data,
+        userId: exitUser?.id,
+        name: exitUser?.name,
         status: 'pending',
+        ...data,
       },
     });
   }
@@ -174,8 +176,8 @@ export class SchoolJoinRequestService {
             schoolId: request.schoolId,
             name: acceptingUser.name,
             email: acceptingUser.email,
-            image : acceptingUser.image,
-            age : acceptingUser.age,
+            image: acceptingUser.image,
+            age: acceptingUser.age,
             phone: acceptingUser.phone,
             gender: acceptingUser.gender,
           };
@@ -199,8 +201,8 @@ export class SchoolJoinRequestService {
             schoolId: request.schoolId,
             name: acceptingUser.name,
             email: acceptingUser.email,
-            image : acceptingUser.image,
-            age : acceptingUser.age,
+            image: acceptingUser.image,
+            age: acceptingUser.age,
             phone: acceptingUser.phone,
             gender: acceptingUser.gender,
           };
