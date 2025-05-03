@@ -55,6 +55,7 @@ export class SchoolJoinRequestService {
         return this.dbService.schoolJoinRequest.create({
           data: {
             userId: exitUser?.id,
+            name : exitUser?.name,
             ...data,
             status: 'pending',
           },
@@ -160,7 +161,7 @@ export class SchoolJoinRequestService {
           image: acceptingUser.image,
           age: acceptingUser.age,
           gender: acceptingUser.gender,
-          classId: request.classId,
+          classId: request.role === 'TEACHER' ? undefined : request.classId,
         };
 
         let roleEntity;
@@ -170,17 +171,21 @@ export class SchoolJoinRequestService {
           roleEntity = await tx.teacher.create({ data: commonData });
           payload = {
             sub: roleEntity.id,
-            schoolId: roleEntity.schoolId,
-            name: roleEntity.name,
-            email: roleEntity.email,
+            schoolId: request.schoolId,
+            name: acceptingUser.name,
+            email: acceptingUser.email,
+            image : acceptingUser.image,
+            age : acceptingUser.age,
+            phone: acceptingUser.phone,
+            gender: acceptingUser.gender,
           };
         } else if (request.role === 'STUDENT') {
           roleEntity = await tx.student.create({ data: commonData });
           payload = {
             sub: roleEntity.id,
             schoolId: request.schoolId,
-            name: roleEntity.name,
-            email: roleEntity.email,
+            name: acceptingUser.name,
+            email: acceptingUser.email,
             classId: request.classId,
             age: acceptingUser.age,
             gender: acceptingUser.gender,
@@ -191,9 +196,13 @@ export class SchoolJoinRequestService {
           roleEntity = await tx.schoolStaff.create({ data: { ...commonData, role: request.role } });
           payload = {
             sub: roleEntity.id,
-            schoolId: roleEntity.schoolId,
-            name: roleEntity.name,
-            email: roleEntity.email,
+            schoolId: request.schoolId,
+            name: acceptingUser.name,
+            email: acceptingUser.email,
+            image : acceptingUser.image,
+            age : acceptingUser.age,
+            phone: acceptingUser.phone,
+            gender: acceptingUser.gender,
           };
         } else {
           throw new BadRequestException(`Invalid or unknown role "${request.role}" specified.`);
