@@ -94,7 +94,15 @@ export class UserService {
     const where = id ? { id } : email ? { email } : { username };
 
     try {
-      const user = await this.dbService.user.findUnique({ where });
+      const user = await this.dbService.user.findUnique({
+        where, include: {
+          school: {
+            select: {
+              name: true, id: true, logo: true, username: true
+            }
+          }
+        }
+      });
 
       if (!user) {
         const identifier = id || email || username;
