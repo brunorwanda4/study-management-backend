@@ -163,7 +163,7 @@ export class SchoolJoinRequestService {
           image: acceptingUser.image,
           age: acceptingUser.age,
           gender: acceptingUser.gender,
-          classId: request.role === 'TEACHER' ? undefined : request.classId,
+          classId: request.role !== 'STUDENT' ? undefined : request.classId,
         };
 
         let roleEntity;
