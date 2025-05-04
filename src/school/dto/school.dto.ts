@@ -21,7 +21,7 @@ export const AffiliationTypeEnum = z.enum([
   "Government", "Religious", "NGO", "independent"
 ])
 
-const ContactSchema = z.object({
+export const ContactSchema = z.object({
   phone: z.string().min(1, "Phone is required"),
   email: z.string().email("Invalid email format"),
 }).optional();

@@ -52,7 +52,7 @@ export class AuthService {
      * Validates user credentials against the database.
      * Separated credential validation from input format validation.
      */
-    private async validateUserCredentials(email: string, passwordInput: string): Promise<User | null> {
+    async validateUserCredentials(email: string, passwordInput: string): Promise<User | null> {
         // Fetch only necessary fields for validation and token generation if possible
         // Alternative if findOneByEmailWithSelect doesn't exist:
         const user = await this.userService.findOne(undefined, email);
