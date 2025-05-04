@@ -2,7 +2,7 @@ import { DbService } from './../db/db.service'; // Adjust path as needed
 import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, BadRequestException } from '@nestjs/common';
 import { CreateTeacherDto, createTeacherSchema } from './dto/create-teacher.dto'; // Adjust path
 import { UpdateTeacherDto, validatedUpdateTeacherSchema } from './dto/update-teacher.dto'; // Adjust path
-import { Prisma } from 'generated/prisma'; // Adjust import path if needed
+import { Prisma, Teacher } from 'generated/prisma'; // Adjust import path if needed
 
 @Injectable()
 export class TeachersService {
@@ -137,6 +137,17 @@ export class TeachersService {
       throw new InternalServerErrorException('An error occurred while retrieving the teacher.');
     }
   }
+
+   async findByUserIdAndSchoolId(userId: string, schoolId: string): Promise<Teacher | null> {
+      return this.db.teacher.findUnique({
+        where: {
+          userId_schoolId: { 
+            userId: userId,
+            schoolId: schoolId,
+          },
+        },
+      });
+    }
 
   /**
    * Updates an existing teacher record.
