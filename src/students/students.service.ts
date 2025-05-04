@@ -80,7 +80,7 @@ export class StudentsService {
    * @throws NotFoundException if ID format is invalid.
    * @throws InternalServerErrorException for database errors.
    */
-  async findAll(schoolId?: string, userId?: string) {
+  async findAll(schoolId?: string, userId?: string,classId ?: string) {
     if (schoolId && !/^[0-9a-fA-F]{24}$/.test(schoolId)) {
       throw new BadRequestException('Invalid School ID format.');
     }
@@ -94,6 +94,9 @@ export class StudentsService {
         where.schoolId = schoolId;
       } else if (userId) {
         where.userId = userId;
+      } else if (classId) {
+        where.classId = classId;
+
       }
 
       const students = await this.db.student.findMany({
