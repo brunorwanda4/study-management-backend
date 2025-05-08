@@ -129,10 +129,13 @@ export class SchoolJoinRequestService {
 
 
   // UPDATE - Accept a request (Specific status update + user role creation)
-  // Add 'return await' before calling the transaction
   async acceptRequest(id: string, user: AuthUserDto): Promise<{ token: string; acceptedRequest: SchoolJoinRequest }> {
     if (!user?.id) {
       throw new UnauthorizedException("You must be logged in to accept school join requests.");
+    }
+
+    if (!/^[0-9a-fA-F]{24}$/.test(id)) {
+      throw new BadRequestException('Invalid Request ID format.');
     }
 
     try {
@@ -140,6 +143,10 @@ export class SchoolJoinRequestService {
         this.findOne(id),
         this.dbService.user.findUnique({ where: { id: user.id } }),
       ]);
+
+      if (!/^[0-9a-fA-F]{24}$/.test(request.schoolId)) {
+        throw new BadRequestException('Invalid School ID format.');
+      }
 
       if (!acceptingUser) {
         throw new BadRequestException("Sorry, your user ID doesn't exist. Please make sure you have an account.");

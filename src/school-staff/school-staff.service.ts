@@ -1,8 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { DbService } from 'src/db/db.service';
 import { CreateSchoolStaffDto } from './dto/create-school-staff.dto';
 import { UpdateSchoolStaffDto } from './dto/update-school-staff.dto';
-import { SchoolStaff } from 'generated/prisma';
+import { Prisma, SchoolStaff } from 'generated/prisma';
 
 @Injectable()
 export class SchoolStaffService {
@@ -23,8 +23,42 @@ export class SchoolStaffService {
    * Retrieves all school staff records.
    * @returns A list of all school staff records.
    */
-  async findAll(): Promise<SchoolStaff[]> {
-    return this.dbService.schoolStaff.findMany();
+  async findAll(schoolId?: string, userId?: string,) {
+    if (schoolId && !/^[0-9a-fA-F]{24}$/.test(schoolId)) {
+      throw new BadRequestException('Invalid School ID format.');
+    }
+    if (userId && !/^[0-9a-fA-F]{24}$/.test(userId)) {
+      throw new BadRequestException('Invalid User ID format.');
+    }
+
+    const where: Prisma.SchoolStaffWhereInput = {};
+    if (schoolId) {
+      where.schoolId = schoolId;
+    } else if (userId) {
+      where.userId = userId;
+    }
+    return this.dbService.schoolStaff.findMany({
+      where, include: {
+        user: {
+          select: {
+            username: true,
+            id: true,
+            name: true,
+            image: true
+          }
+        },
+        school: {
+          select: {
+            id: true,
+            name: true,
+            logo: true
+          }
+        }
+      },
+      orderBy: {
+        createAt: 'desc'
+      }
+    });
   }
 
   /**
@@ -48,7 +82,7 @@ export class SchoolStaffService {
   async findByUserIdAndSchoolId(userId: string, schoolId: string): Promise<SchoolStaff | null> {
     return this.dbService.schoolStaff.findUnique({
       where: {
-        userId_schoolId: { 
+        userId_schoolId: {
           userId: userId,
           schoolId: schoolId,
         },

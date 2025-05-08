@@ -4,6 +4,7 @@ import { CreateSchoolDto, CreateSchoolSchema, SchoolMembersDto, schoolTypeDto } 
 import { ZodValidationPipe } from 'src/common/pipes/zod-validation.pipe';
 import { SchoolAcademicDto, SchoolAcademicSchema } from './dto/school-academic.dto';
 import { SchoolAdministrationDto, SchoolAdministrationSchema } from './dto/school-administration.dto';
+import { UpdateSchoolDto } from './dto/update.dto';
 
 @Controller('school')
 export class SchoolController {
@@ -29,7 +30,7 @@ export class SchoolController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateSchoolDto: unknown) {
+  update(@Param('id') id: string, @Body() updateSchoolDto: UpdateSchoolDto) {
     return this.schoolService.update(id, updateSchoolDto);
   }
 

@@ -27,8 +27,11 @@ export class SchoolStaffController {
    * @returns A list of all school staff records.
    */
   @Get()
-  async findAll(): Promise<SchoolStaff[]> {
-    return this.schoolStaffService.findAll();
+  async findAll(
+    @Query('schoolId') schoolId?: string, // Get optional schoolId from query string (?schoolId=...)
+    @Query('userId') userId?: string, 
+  ): Promise<SchoolStaff[]> {
+    return this.schoolStaffService.findAll(schoolId, userId);
   }
 
   @Get('find') // Use a specific path like 'find' to avoid conflict with the ':id' route

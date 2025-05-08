@@ -8,6 +8,7 @@ import { ModuleType, Prisma } from 'generated/prisma';
 import { SchoolAdministrationDto, SchoolAdministrationSchema } from './dto/school-administration.dto';
 import { sendAdministrationJoinRequestsDto } from 'src/join-school-request/dto/join-school-request.dto';
 import { hashCode } from 'src/common/utils/hash.util';
+import { UpdateSchoolDto, UpdateSchoolSchema } from './dto/update.dto';
 
 @Injectable()
 export class SchoolService {
@@ -139,8 +140,115 @@ export class SchoolService {
         }
     }
 
-    update(id: string, updateSchoolDto: unknown) {
-        return `This action updates a #${id} school`;
+    async update(schoolId: string, updateSchoolDto: UpdateSchoolDto,) {
+        const validation = UpdateSchoolSchema.safeParse(updateSchoolDto);
+        if (!validation.success) {
+            console.error("Validation Errors:", validation.error.flatten().fieldErrors);
+            throw new BadRequestException({message: 'Invalid school data provided for update', errors: validation.error.flatten().fieldErrors});
+        }
+
+        const { logo, username: newUsername, name, ...rest } = validation.data;
+
+        try {
+            // 1. Fetch the existing school
+            const existingSchool = await this.dbService.school.findUnique({ where: { id: schoolId } });
+            if (!existingSchool) {
+                throw new BadRequestException('School not found.');
+            }
+
+            // 2. Check permissions (e.g., only creator or admin can update)
+            // const updater = await this.dbService.user.findUnique({ where: { id: callingUserId } });
+            // if (!updater) {
+            //     throw new BadRequestException('Updater user not found.');
+            // }
+            // if (existingSchool.creatorId !== callingUserId && updater.role !== "ADMIN") {
+            //     throw new BadRequestException('You do not have permission to update this school.');
+            // }
+
+            let finalUsername = existingSchool.username;
+            // 3. Handle username update and potential conflicts
+            if (newUsername && newUsername !== existingSchool.username) {
+                const schoolWithNewUsername = await this.dbService.school.findUnique({ where: { username: newUsername } });
+                if (schoolWithNewUsername && schoolWithNewUsername.id !== schoolId) {
+                    // If the new username is taken by *another* school, generate a new one or throw error
+                    // For this example, let's throw an error. You could also generate one like in create.
+                    throw new BadRequestException(`Username '${newUsername}' is already taken.`);
+                }
+                finalUsername = newUsername;
+            } else if (name && !newUsername && name !== existingSchool.name) {
+                // Optional: If name changes and username is not explicitly set for update,
+                // you might want to suggest or auto-update the username similarly to create.
+                // For simplicity, we are not doing that here unless `newUsername` is provided.
+            }
+
+
+            // 4. Handle logo update
+            let imageUrl = existingSchool.logo; // Keep existing logo by default
+            if (logo && typeof logo === 'string') {
+                if (logo.startsWith('data:image')) {
+                    const uploaded = await this.uploadService.uploadBase64Image(logo, 'logos');
+                    imageUrl = uploaded.secure_url;
+                } else if (logo.startsWith('http://') || logo.startsWith('https://')) {
+                    // If a new URL is provided directly
+                    imageUrl = logo;
+                } else if (logo === "") { // Allow explicitly clearing the logo
+                    imageUrl = null; // Or null, depending on your DB schema
+                }
+            }
+
+
+            // 5. Prepare data for update
+            const dataToUpdate: any = {
+                ...rest,
+                username: finalUsername,
+                logo: imageUrl,
+            };
+
+            // If name is part of the DTO, include it
+            if (name !== undefined) {
+                dataToUpdate.name = name;
+            }
+
+            // Remove undefined fields from dataToUpdate to prevent overwriting existing values with undefined
+            for (const key in dataToUpdate) {
+                if (dataToUpdate[key] === undefined) {
+                    delete dataToUpdate[key];
+                }
+            }
+
+            // If no actual data would be changed (e.g. DTO was empty or contained only existing values)
+            // you might choose to return early, though Prisma handles this gracefully.
+            if (Object.keys(dataToUpdate).length === 0) {
+                 console.log("No changes to apply for school:", schoolId);
+                 return existingSchool; // Or throw a message indicating no changes
+            }
+
+
+            // 6. Perform the update
+            return await this.dbService.school.update({
+                where: { id: schoolId },
+                data: {
+                    ...dataToUpdate,
+                    updatedAt: new Date(), // Explicitly set updatedAt if your ORM doesn't do it automatically
+                },
+            });
+
+        } catch (error: any) {
+            if (error.code === 'P2002') { // Prisma unique constraint error
+                 const target = (error as any).meta?.target;
+                if (target?.includes('username')) {
+                    throw new BadRequestException('School with this username already exists.');
+                }
+                 if (target?.includes('code') && validation.data.code) { // If code was part of the update and caused error
+                    throw new BadRequestException('School with this code already exists.');
+                }
+            }
+            console.error("Update School Error:", error);
+            throw new BadRequestException({
+                message: error.message || 'Something went wrong while updating the school',
+                error: error.message,
+            });
+        }
     }
 
     remove(id: string) {
