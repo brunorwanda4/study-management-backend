@@ -104,21 +104,49 @@ enum AttendanceSystem {
   Online
 }
 
+// NEW: Define a composite type for detailed academic information
+type SchoolAcademicProfile {
+  // Primary Education
+  primarySubjectsOffered String[]
+  primaryPassMark        Int?
+
+  // Ordinary Level
+  oLevelCoreSubjects     String[]
+  oLevelOptionSubjects   String[]
+  oLevelExaminationTypes String[]
+  oLevelAssessment       String[]
+
+  // Advanced Level
+  aLevelSubjectCombination String[] // Min/max length constraints from Zod are enforced at application level
+  aLevelOptionSubjects     String[]
+  aLevelPassMark           Int?
+
+  // TVET
+  tvetSpecialization String[] // Min/max length constraints from Zod are enforced at application level
+  tvetOptionSubjects String[]
+}
+
 model School {
-  id                               String            @id @default(auto()) @map("_id") @db.ObjectId
-  creatorId                        String            @db.ObjectId
+  id                  String         @id @default(auto()) @map("_id") @db.ObjectId
+  creatorId           String         @db.ObjectId
   // basic information
-  username                         String            @unique
-  logo                             String?
-  name                             String
-  description                      String?
-  schoolType                       SchoolType
-  curriculum                       String[]
-  educationLevel                   String[]
-  assessmentTypes                  String[]
-  schoolMembers                    SchoolMembers?
-  accreditationNumber              String?
-  affiliation                      String?
+  username            String         @unique
+  logo                String?
+  name                String
+  description         String?
+  schoolType          SchoolType
+  curriculum          String[]
+  educationLevel      String[]
+  assessmentTypes     String[] // This field already exists and matches Zod's assessmentTypes
+  schoolMembers       SchoolMembers?
+  accreditationNumber String?
+  affiliation         String?
+
+  // NEW: Add fields based on SchoolAcademicSchema and SchoolAcademicCreation
+  academicProfile SchoolAcademicProfile? // Embeds the detailed academic structure
+  totalClasses    Int? // From SchoolAcademicCreationDto
+  totalModules    Int? // From SchoolAcademicCreationDto (renamed from totalModule for clarity)
+
   // location
   address                          Address?
   contact                          Contact?
@@ -130,7 +158,7 @@ model School {
   attendanceSystem                 AttendanceSystem?
   scholarshipAvailable             Boolean?
   // facilities
-  classrooms                       Int?
+  classrooms                       Int? // This might relate to totalClasses, or they can be distinct
   library                          Boolean?
   labs                             String[]
   sportsExtracurricular            String[]
