@@ -47,8 +47,9 @@ type Address {
 }
 
 type Contact {
-  phone String
-  email String
+  phone          String
+  email          String
+  whatsappNumber String?
 }
 
 type SocialMedial {

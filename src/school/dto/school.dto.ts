@@ -24,6 +24,7 @@ export const AffiliationTypeEnum = z.enum([
 export const ContactSchema = z.object({
   phone: z.string().min(1, "Phone is required"),
   email: z.string().email("Invalid email format"),
+  whatsappNumber: z.string().optional(),
 }).optional();
 
 const SocialMediaSchema = z.object({
