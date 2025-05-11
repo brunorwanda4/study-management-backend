@@ -5,6 +5,7 @@ export enum ModuleType {
     Optional = 'Optional',
 }
 
+
 // Assuming a Module schema for completeness, though not strictly needed for the fix
 export const ModuleSchema = z.object({
     id: z.string().optional(),
