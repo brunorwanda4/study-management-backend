@@ -2,10 +2,10 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { DbService } from 'src/db/db.service';
 import { UploadService } from 'src/upload/upload.service';
 import { generateCode, generateUsername } from 'src/common/utils/characters.util';
-import { string, tuple, z } from 'zod';
 import { CreateClassInput, CreateClassSchema } from './dto/create-class.dto';
 import { ClassDto } from './dto/class.dto';
 import { ClassType, Teacher } from 'generated/prisma';
+import { UpdateClassInput, UpdateClassSchema } from './dto/update-class.dto';
 
 @Injectable()
 export class ClassService {
@@ -219,19 +219,12 @@ export class ClassService {
     }
   }
 
-  async update(id: string, updateClassDto: unknown): Promise<ClassDto> {
+  async update(id: string, updateClassDto: UpdateClassInput): Promise<ClassDto> {
     // Define a Zod schema for update if specific fields are allowed to be updated
     // For a generic update, you might skip Zod validation here or use a partial schema
-    // const updateValidation = UpdateClassSchema.safeParse(updateClassDto);
-    // if (!updateValidation.success) {
-    //   throw new BadRequestException('Invalid class data provided for update');
-    // }
-    // const updateData = updateValidation.data;
-
-
-    // Basic validation to ensure updateClassDto is an object
-    if (typeof updateClassDto !== 'object' || updateClassDto === null) {
-      throw new BadRequestException('Invalid update data provided');
+    const updateValidation = UpdateClassSchema.safeParse(updateClassDto);
+    if (!updateValidation.success) {
+      throw new BadRequestException('Invalid class data provided for update');
     }
 
     // Cast to a more specific type if you have a defined UpdateClassDto
