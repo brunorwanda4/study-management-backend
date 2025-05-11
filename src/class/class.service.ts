@@ -176,7 +176,8 @@ export class ClassService {
               name: true,
               image: true,
               email: true,
-              userId: true
+              userId: true,
+              id: true
             }
           },
           students: true,
