@@ -144,7 +144,7 @@ export class SchoolService {
         const validation = UpdateSchoolSchema.safeParse(updateSchoolDto);
         if (!validation.success) {
             console.error("Validation Errors:", validation.error.flatten().fieldErrors);
-            throw new BadRequestException({message: 'Invalid school data provided for update', errors: validation.error.flatten().fieldErrors});
+            throw new BadRequestException({ message: 'Invalid school data provided for update', errors: validation.error.flatten().fieldErrors });
         }
 
         const { logo, username: newUsername, name, ...rest } = validation.data;
@@ -219,8 +219,8 @@ export class SchoolService {
             // If no actual data would be changed (e.g. DTO was empty or contained only existing values)
             // you might choose to return early, though Prisma handles this gracefully.
             if (Object.keys(dataToUpdate).length === 0) {
-                 console.log("No changes to apply for school:", schoolId);
-                 return existingSchool; // Or throw a message indicating no changes
+                console.log("No changes to apply for school:", schoolId);
+                return existingSchool; // Or throw a message indicating no changes
             }
 
 
@@ -235,11 +235,11 @@ export class SchoolService {
 
         } catch (error: any) {
             if (error.code === 'P2002') { // Prisma unique constraint error
-                 const target = (error as any).meta?.target;
+                const target = (error as any).meta?.target;
                 if (target?.includes('username')) {
                     throw new BadRequestException('School with this username already exists.');
                 }
-                 if (target?.includes('code') && validation.data.code) { // If code was part of the update and caused error
+                if (target?.includes('code') && validation.data.code) { // If code was part of the update and caused error
                     throw new BadRequestException('School with this code already exists.');
                 }
             }
@@ -265,28 +265,22 @@ export class SchoolService {
     ): Promise<SchoolAcademicCreationDto> {
         const validation = SchoolAcademicSchema.safeParse(schoolAcademicDto);
         if (!validation.success) {
-            // You might want to log validation.error or return more specific details
             console.error("Zod validation failed:", validation.error.format());
             throw new BadRequestException('Invalid school academic data provided');
         }
 
-        // Destructure all fields from validation.data that are used in the function
-        // It's often clearer to access them directly via validation.data.fieldName when constructing complex objects like academicProfileData
         const {
             schoolId,
-            primarySubjectsOffered, // Used in conditional logic
-            oLevelCoreSubjects,     // Used in conditional logic
-            aLevelSubjectCombination, // Used in conditional logic
-            tvetSpecialization,     // Used in conditional logic
-            // assessmentTypes, // Will be accessed via validation.data.assessmentTypes
-            // Other fields like primaryPassMark, etc., will be accessed via validation.data directly
+            primarySubjectsOffered,
+            oLevelCoreSubjects,
+            aLevelSubjectCombination,
+            tvetSpecialization,
         } = validation.data;
-
 
         try {
             const school = await this.dbService.school.findUnique({
                 where: { id: schoolId },
-                select: { id: true, name: true }, // Select only what's needed
+                select: { id: true, name: true },
             });
 
             if (!school) {
@@ -297,8 +291,8 @@ export class SchoolService {
             const academicYear = `${currentYear}-${currentYear + 1}`;
 
             const classesToCreate: Prisma.ClassCreateManyInput[] = [];
-            const moduleInstancesToPrepare: Prisma.ModuleCreateManyInput[] = []; // Temporary store before linking classId
-
+            // We'll now store modules with their intended class level/type
+            const modulesByClass: { className: string; modules: Prisma.ModuleCreateManyInput[] }[] = [];
 
             // --- Prepare Classes and Module Instances based on Education Level ---
 
@@ -316,18 +310,20 @@ export class SchoolService {
                         code: generateCode(),
                         classType: 'SchoolClass',
                         educationLever: 'Primary',
-                        curriculum: 'REB', // Assuming REB is a string identifier
+                        curriculum: 'REB',
                     });
 
-                    primarySubjectsOffered.forEach(subjectName => {
-                        moduleInstancesToPrepare.push({
-                            name: subjectName,
-                            // classId will be added after classes are created
-                            code: generateCode(),
-                            subjectType: ModuleType.General,
-                            curriculum: 'REB', // To match with class's curriculum
-                            // educationLever: 'Primary' // Store intended level for later matching
-                        });
+                    // Create modules specific to this class
+                    const classModules = primarySubjectsOffered.map(subjectName => ({
+                        name: subjectName,
+                        code: generateCode(),
+                        subjectType: ModuleType.General,
+                        curriculum: 'REB',
+                    }));
+
+                    modulesByClass.push({
+                        className,
+                        modules: classModules
                     });
                 }
             }
@@ -348,27 +344,31 @@ export class SchoolService {
                         educationLever: 'OLevel',
                         curriculum: 'REB',
                     });
-                    oLevelCoreSubjects.forEach(subjectName => {
-                        moduleInstancesToPrepare.push({
-                            name: subjectName,
-                            code: generateCode(),
-                            subjectType: ModuleType.General,
-                            curriculum: 'REB',
-                            // educationLever: 'OLevel'
-                        });
-                    });
 
+                    // Create modules specific to this class
+                    const classModules = oLevelCoreSubjects.map(subjectName => ({
+                        name: subjectName,
+                        code: generateCode(),
+                        subjectType: ModuleType.General,
+                        curriculum: 'REB',
+                    }));
+
+                    // Add optional subjects if they exist
                     if (validation.data.oLevelOptionSubjects && validation.data.oLevelOptionSubjects.length > 0) {
                         validation.data.oLevelOptionSubjects.forEach(subjectName => {
-                            moduleInstancesToPrepare.push({
+                            classModules.push({
                                 name: subjectName,
                                 code: generateCode(),
-                                subjectType: ModuleType.Optional,
+                                subjectType: ModuleType.General,
                                 curriculum: 'REB',
-                                // educationLever: 'OLevel'
                             });
                         });
                     }
+
+                    modulesByClass.push({
+                        className,
+                        modules: classModules
+                    });
                 }
             }
 
@@ -391,26 +391,31 @@ export class SchoolService {
                             educationLever: 'ALevel',
                             curriculum: 'REB',
                         });
-                        // Module for the combination itself
-                        moduleInstancesToPrepare.push({
+
+                        // Create modules specific to this class
+                        const classModules = [{
                             name: combination,
                             code: generateCode(),
                             subjectType: ModuleType.General,
                             curriculum: 'REB',
-                            // educationLever: 'ALevel'
-                        });
+                        }];
 
+                        // Add optional subjects if they exist
                         if (validation.data.aLevelOptionSubjects && validation.data.aLevelOptionSubjects.length > 0) {
                             validation.data.aLevelOptionSubjects.forEach(subjectName => {
-                                moduleInstancesToPrepare.push({
+                                classModules.push({
                                     name: subjectName,
                                     code: generateCode(),
-                                    subjectType: ModuleType.Optional,
+                                    subjectType: ModuleType.General,
                                     curriculum: 'REB',
-                                    // educationLever: 'ALevel'
                                 });
                             });
                         }
+
+                        modulesByClass.push({
+                            className,
+                            modules: classModules
+                        });
                     });
                 });
             }
@@ -430,28 +435,33 @@ export class SchoolService {
                             code: generateCode(),
                             classType: 'SchoolClass',
                             educationLever: 'TVET',
-                            curriculum: 'TVET', // Assuming TVET is a string identifier
+                            curriculum: 'TVET',
                         });
-                        // Module for the specialization itself
-                        moduleInstancesToPrepare.push({
+
+                        // Create modules specific to this class
+                        const classModules = [{
                             name: specializationName,
                             code: generateCode(),
                             subjectType: ModuleType.General,
                             curriculum: 'TVET',
-                            // educationLever: 'TVET'
-                        });
+                        }];
 
+                        // Add optional subjects if they exist
                         if (validation.data.tvetOptionSubjects && validation.data.tvetOptionSubjects.length > 0) {
                             validation.data.tvetOptionSubjects.forEach(subjectName => {
-                                moduleInstancesToPrepare.push({
+                                classModules.push({
                                     name: subjectName,
                                     code: generateCode(),
-                                    subjectType: ModuleType.Optional,
+                                    subjectType: ModuleType.General,
                                     curriculum: 'TVET',
-                                    // educationLever: 'TVET'
                                 });
                             });
                         }
+
+                        modulesByClass.push({
+                            className,
+                            modules: classModules
+                        });
                     });
                 });
             }
@@ -461,89 +471,48 @@ export class SchoolService {
             if (classesToCreate.length > 0) {
                 const result = await this.dbService.class.createMany({
                     data: classesToCreate,
-                    // skipDuplicates: true, // Consider if you need this or want errors for duplicates
                 });
                 createdClassesCount = result.count;
             }
 
             // Retrieve the created classes to link modules
-            // It's crucial that class names (or another identifier used for retrieval) are unique enough for this to work correctly
             const classNamesCreated = classesToCreate.map(c => c.name);
             const classesInDb = await this.dbService.class.findMany({
                 where: {
                     schoolId: school.id,
-                    name: { in: classNamesCreated } // Ensure names are sufficiently unique or use a better retrieval strategy
+                    name: { in: classNamesCreated }
                 },
-                select: { id: true, name: true, educationLever: true, curriculum: true } // Select curriculum too
+                select: { id: true, name: true }
             });
 
             const finalModuleInstancesToCreate: Prisma.ModuleCreateManyInput[] = [];
-            
-            // Match prepared modules to actual classes created
-            moduleInstancesToPrepare.forEach(moduleData => {
-                const relevantClasses = classesInDb.filter(clsInDb => {
-                    // Match module if its intended curriculum and education level match the class's
-                    // This assumes moduleData.curriculum and clsInDb.curriculum are comparable
-                    // And moduleData.educationLever (if you add it) matches clsInDb.educationLever
-                    // For simplicity, the original logic linked modules broadly; this refinement ensures better matching.
-                    // The original logic for linking modules to classes was:
-                    // "return originalClassData.curriculum === moduleData.curriculum && originalClassData.educationLever === cls.educationLever;"
-                    // We need to ensure `clsInDb.educationLever` and `clsInDb.curriculum` are correctly used from the retrieved class.
-                    // And `moduleData.curriculum` is from the prepared module.
-                    // The `educationLever` for moduleData was commented out, let's assume matching by curriculum is primary.
-                    // And then by the class's education level.
 
-                    let classEducationLevelMatches = false;
-                    if (moduleData.curriculum === 'REB') {
-                        classEducationLevelMatches = ['Primary', 'OLevel', 'ALevel'].includes(clsInDb.educationLever ?? '');
-                    } else if (moduleData.curriculum === 'TVET') {
-                        classEducationLevelMatches = clsInDb.educationLever === 'TVET';
-                    }
-                    // This logic needs to be precise. Let's simplify: a module belongs to a class if the class's curriculum matches the module's intended curriculum.
-                    // And the class's education level is appropriate for that module type (e.g. primary subjects for primary classes).
-                    // The current loop structure already implies this by how moduleInstancesToPrepare are generated per education level block.
-                    // We need to ensure the class's `educationLever` and `curriculum` match the module's intended context.
-
-                    // Find the original class data to know its intended educationLever for the module
-                    const originalClassDataForModuleContext = classesToCreate.find(ctc => {
-                        // This is tricky because moduleInstancesToPrepare doesn't store original class name.
-                        // A better way is to link modules when classes are known.
-                        // The current approach is to create all modules and then try to link them.
-                        // Let's assume for now the logic is: if a module's curriculum matches a class's curriculum,
-                        // and the class's educationLevel is one that *could* have this module.
-                        // This might create too many modules per class if not careful.
-                        // The provided logic `originalClassData.curriculum === moduleData.curriculum && originalClassData.educationLever === cls.educationLever;`
-                        // is better if `originalClassData` can be reliably determined for each `moduleData`.
-                        // Given the current structure, we'll iterate through classes and add all relevant modules.
-                        return clsInDb.curriculum === moduleData.curriculum; // Basic match
+            // Match modules to their specific classes
+            modulesByClass.forEach(classModuleData => {
+                const classInDb = classesInDb.find(c => c.name === classModuleData.className);
+                if (classInDb) {
+                    classModuleData.modules.forEach(module => {
+                        finalModuleInstancesToCreate.push({
+                            ...module,
+                            classId: classInDb.id,
+                        });
                     });
-                    return !!originalClassDataForModuleContext;
-                });
-
-                relevantClasses.forEach(cls => {
-                    finalModuleInstancesToCreate.push({
-                        ...moduleData, // name, subjectType, curriculum from moduleData
-                        classId: cls.id, // Link to the created class ID
-                        code: generateCode(), // Generate a new unique code for each module instance
-                    });
-                });
+                }
             });
-            
 
             // --- Create Module Instances in the Database ---
             let createdModulesCount = 0;
             if (finalModuleInstancesToCreate.length > 0) {
                 const result = await this.dbService.module.createMany({
                     data: finalModuleInstancesToCreate,
-                    // skipDuplicates: true, // Avoids error if a module with the same unique fields (e.g., code) already exists
                 });
                 createdModulesCount = result.count;
             }
 
-            // --- NEW: Update the School record with Academic Profile and Counts ---
-            const academicProfileData = { // Type will be inferred by Prisma, should match SchoolAcademicProfile structure
+            // --- Update the School record with Academic Profile and Counts ---
+            const academicProfileData = {
                 primarySubjectsOffered: validation.data.primarySubjectsOffered ?? [],
-                primaryPassMark: validation.data.primaryPassMark, // Will be number or undefined
+                primaryPassMark: validation.data.primaryPassMark,
 
                 oLevelCoreSubjects: validation.data.oLevelCoreSubjects ?? [],
                 oLevelOptionSubjects: validation.data.oLevelOptionSubjects ?? [],
@@ -552,41 +521,29 @@ export class SchoolService {
 
                 aLevelSubjectCombination: validation.data.aLevelSubjectCombination ?? [],
                 aLevelOptionSubjects: validation.data.aLevelOptionSubjects ?? [],
-                aLevelPassMark: validation.data.aLevelPassMark, // Will be number or undefined
+                aLevelPassMark: validation.data.aLevelPassMark,
 
                 tvetSpecialization: validation.data.tvetSpecialization ?? [],
                 tvetOptionSubjects: validation.data.tvetOptionSubjects ?? [],
-                // Note: Prisma's SchoolAcademicProfile does not have pass marks for TVET or O-Level in the provided schema.
-                // If they were added to Prisma schema, include them here.
             };
-            
-            const schoolUpdateData: Prisma.SchoolUpdateInput = {
-                academicProfile: academicProfileData,
-                totalClasses: createdClassesCount,
-                totalModules: createdModulesCount,
-            };
-
-            // Conditionally add assessmentTypes if provided in the DTO
-            // if (validation.data.assessmentTypes !== undefined) {
-            //     schoolUpdateData.assessmentTypes = validation.data.assessmentTypes;
-            // }
 
             await this.dbService.school.update({
                 where: { id: schoolId },
-                data: schoolUpdateData,
+                data: {
+                    academicProfile: academicProfileData,
+                    totalClasses: createdClassesCount,
+                    totalModules: createdModulesCount,
+                },
             });
-            // --- End of School Update ---
 
             return { totalClasses: createdClassesCount, totalModule: createdModulesCount };
 
         } catch (error) {
-            console.error("Error in setupAcademicStructure:", error); // Log the actual error
+            console.error("Error in setupAcademicStructure:", error);
             if (error instanceof NotFoundException || error instanceof BadRequestException) {
                 throw error;
             }
-            // Prisma unique constraint violation
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-                 // The 'target' field in error.meta can tell you which field caused the error
                 const target = error.meta?.target as string[] | string | undefined;
                 let fieldMessage = "a generated value";
                 if (target && Array.isArray(target) && target.length > 0) {
