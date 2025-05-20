@@ -82,6 +82,10 @@ model User {
   Teacher           Teacher[]
   Student           Student[]
   SchoolJoinRequest SchoolJoinRequest[]
+
+  ClassMember ClassMember[]
+
+  invitedClassMembers ClassMember[] @relation("inviterRelation")
 }
 
 // school module
@@ -210,18 +214,37 @@ enum ClassType {
   Public
 }
 
+enum ClassJoinPermission {
+  TEACHER_ONLY
+  CODE_ONLY
+  TEACHER_OR_CODE
+  OPEN
+}
+
+type ClassSettings {
+  joinPermission   ClassJoinPermission @default(TEACHER_ONLY)
+  allowSelfJoin    Boolean             @default(false)
+  showMemberList   Boolean             @default(true)
+  allowFileSharing Boolean             @default(true)
+  allowDiscussion  Boolean             @default(true)
+  announcementOnly Boolean             @default(false)
+  requireApproval  Boolean             @default(false)
+  maxStudents      Int?
+}
+
 model Class {
-  id             String     @id @default(auto()) @map("_id") @db.ObjectId
-  schoolId       String?    @db.ObjectId
-  creatorId      String?    @db.ObjectId
-  code           String     @unique
+  id             String         @id @default(auto()) @map("_id") @db.ObjectId
+  schoolId       String?        @db.ObjectId
+  creatorId      String?        @db.ObjectId
+  code           String         @unique
   name           String
-  username       String     @unique
+  username       String         @unique
   image          String?
-  classType      ClassType? @default(Private)
+  classType      ClassType?     @default(Private)
   educationLever String?
   curriculum     String?
-  classTeacherId String?    @db.ObjectId
+  classTeacherId String?        @db.ObjectId
+  settings       ClassSettings?
 
   createAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -234,6 +257,41 @@ model Class {
   Module Module[]
 
   SchoolJoinRequest SchoolJoinRequest[]
+
+  ClassMember ClassMember[]
+}
+
+enum ClassMemberRole {
+  TEACHER
+  STUDENT
+  ASSISTANT_TEACHER
+  MONITOR
+  OBSERVER
+  PARENT
+}
+
+model ClassMember {
+  id        String          @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String          @db.ObjectId
+  classId   String          @db.ObjectId
+  role      ClassMemberRole @default(STUDENT)
+  joinedAt  DateTime        @default(now())
+  invitedBy String?         @db.ObjectId
+  status    String          @default("active") // "active", "inactive", "pending", "rejected"
+
+  // Additional permissions (can be null to use role defaults)
+  canManageStudents    Boolean?
+  canManageContent     Boolean?
+  canPostAnnouncements Boolean?
+  canStartMeetings     Boolean?
+  canGradeStudents     Boolean?
+
+  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class   Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  inviter User? @relation(fields: [invitedBy], references: [id], name: "inviterRelation")
+
+  @@unique([userId, classId])
+  @@index([classId, role])
 }
 
 // school member
