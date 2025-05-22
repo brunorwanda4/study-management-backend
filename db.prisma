@@ -1,0 +1,1272 @@
+datasource db {
+    provider = "mongodb"
+    url      = env("DATABASE_URL")
+}
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+//--------------------------------------
+// ENUMS
+//--------------------------------------
+
+enum UserPlatformRole {
+    SCHOOL_CREATOR
+    TEACHER
+    STUDENT
+    PARENT_GUARDIAN
+    PLATFORM_ADMIN // For overall platform management
+}
+
+enum UserSchoolRole {
+    ADMIN
+    TEACHER
+    STUDENT
+    STAFF // For librarians, counselors etc.
+    // PARENT_GUARDIAN is not a direct school role here, but linked via ParentStudentLink
+}
+
+enum AccountStatus {
+    PENDING_VERIFICATION
+    ACTIVE
+    INACTIVE
+    SUSPENDED
+    INVITED // User has been invited but not yet accepted/completed setup
+}
+
+enum SchoolType {
+    K_12
+    HIGHER_EDUCATION
+    TUTORING_CENTER
+    OTHER
+}
+
+enum SchoolStatus {
+    SETUP_IN_PROGRESS
+    ACTIVE
+    INACTIVE
+    SUSPENDED
+}
+
+enum MaterialType {
+    TEXT_PAGE
+    FILE_UPLOAD
+    VIDEO_EMBED // or link
+    AUDIO_EMBED // or link
+    EXTERNAL_LINK
+    LTI_TOOL
+}
+
+enum QuestionType {
+    MULTIPLE_CHOICE
+    TRUE_FALSE
+    SHORT_ANSWER
+    ESSAY
+    FILL_IN_THE_BLANKS
+    MATCHING // Example of another type
+}
+
+enum SubmissionStatus {
+    PENDING_SUBMISSION // Student hasn't submitted yet
+    SUBMITTED // Student submitted, pending grading
+    GRADED // Teacher has graded
+    LATE_SUBMISSION // Submitted after due date
+    RESUBMITTED // Student resubmitted after feedback
+    NEEDS_RESUBMISSION // Teacher requests resubmission
+}
+
+enum AttendanceStatus {
+    PRESENT
+    ABSENT
+    LATE
+    EXCUSED
+}
+
+enum AnnouncementTargetAudienceType {
+    ALL_IN_SCHOOL
+    SPECIFIC_ROLES
+    SPECIFIC_GRADE_LEVELS
+    SPECIFIC_CLASSES // For class announcements, this might be implicit
+}
+
+enum RelationshipToStudent {
+    MOTHER
+    FATHER
+    GUARDIAN
+    GRANDPARENT
+    OTHER
+}
+
+enum EnrollmentStatus {
+    PENDING_APPROVAL // Student added, awaiting confirmation or school approval
+    ENROLLED
+    WITHDRAWN
+    COMPLETED
+}
+
+enum NotificationType {
+    NEW_ASSIGNMENT
+    ASSIGNMENT_REMINDER
+    ASSIGNMENT_GRADED
+    NEW_QUIZ
+    QUIZ_REMINDER
+    QUIZ_GRADED
+    NEW_ANNOUNCEMENT_SCHOOL
+    NEW_ANNOUNCEMENT_CLASS
+    NEW_MESSAGE
+    FORUM_REPLY
+    EVENT_REMINDER
+    SCHOOL_INVITATION
+    CLASS_INVITATION
+    PARENT_LINK_REQUEST
+}
+
+//--------------------------------------
+// MODELS
+//--------------------------------------
+
+// Core User Model
+model User {
+    id                     String           @id @default(auto()) @map("_id") @db.ObjectId
+    email                  String           @unique
+    passwordHash           String? // Nullable if social login is primary or not yet set
+    fullName               String
+    phoneNumber            String?
+    country                String?
+    timezone               String?
+    platformRole           UserPlatformRole // Initial role selected at signup
+    emailVerified          Boolean          @default(false)
+    emailVerificationToken String?          @unique
+    passwordResetToken     String?          @unique
+    passwordResetExpires   DateTime?
+    termsAccepted          Boolean          @default(false)
+    accountStatus          AccountStatus    @default(PENDING_VERIFICATION)
+    lastLogin              DateTime?
+    createdAt              DateTime         @default(now())
+    updatedAt              DateTime         @updatedAt
+
+    // Social Login IDs
+    googleId    String? @unique
+    microsoftId String? @unique
+
+    // Role-specific profile information (can be expanded or moved to separate profile models if they grow large)
+    teacherBio               String? // For users with Teacher role
+    teacherSubjectsExpertise String[] // General expertise, not formal assignment
+    studentAge               Int? // For users with Student role
+    studentGradeLevelInfo    String? // e.g., "Grade 5", "Year 10" - informational
+
+    // Relationships
+    createdSchools  School[]         @relation("SchoolCreator")
+    schoolLinks     UserSchoolLink[] // User's roles in various schools
+    notifications   Notification[]   @relation("UserNotification")
+    auditLogEntries AuditLogEntry[]  @relation("UserAuditLog")
+
+    // Communication
+    sentDirectMessages     DirectMessage[]    @relation("SentMessages")
+    receivedDirectMessages DirectMessage[]    @relation("ReceivedMessages")
+    discussionThreads      DiscussionThread[] @relation("ThreadCreator")
+    discussionPosts        DiscussionPost[]   @relation("PostCreator")
+
+    // School Admin / Teacher specific actions
+    createdCourses             Course[]             @relation("CourseCreator") // Course templates
+    createdSchoolAnnouncements SchoolAnnouncement[] @relation("SchoolAnnouncementCreator")
+    createdSchoolEvents        SchoolEvent[]        @relation("SchoolEventCreator")
+    createdQuestionBanks       QuestionBank[]       @relation("QuestionBankCreator")
+    createdQuestions           Question[]           @relation("QuestionCreator") // Questions not in a bank
+
+    // Teacher specific actions
+    classAssignments      ClassTeacherAssignment[] // Classes this teacher is assigned to
+    createdAssignments    Assignment[]              @relation("AssignmentCreator")
+    gradedSubmissions     AssignmentSubmission[]    @relation("Grader")
+    createdQuizzes        Quiz[]                    @relation("QuizCreator")
+    hostedVirtualSessions VirtualClassroomSession[] @relation("SessionHost")
+    teacherResources      TeacherResource[]         @relation("TeacherOwnedResource")
+    classAnnouncements    ClassAnnouncement[]       @relation("ClassAnnouncementCreator")
+    attendanceTakenBy     ClassAttendanceRecord[]   @relation("AttendanceTaker")
+
+    // Student specific
+    studentEnrollments    StudentEnrollment[]    @relation("StudentEnrollments")
+    assignmentSubmissions AssignmentSubmission[] @relation("StudentSubmission")
+    quizAttempts          QuizAttempt[]          @relation("StudentQuizAttempt")
+    studentNotes          StudentNote[]
+    flashcardSets         FlashcardSet[]
+    activityCompletions   ActivityCompletion[]
+
+    // Parent/Guardian specific
+    parentLinks ParentStudentLink[] @relation("ParentLinks") // Links where this user is the parent
+    childLinks  ParentStudentLink[] @relation("ChildLinks") // Links where this user is the student (being linked by a parent)
+
+    // Staff specific (if staff has distinct actions not covered by admin/teacher)
+    // managedDepartments Department[] @relation("DepartmentHead") // Example if staff can be dept head
+}
+
+// Junction table for User's role within a specific School
+model UserSchoolLink {
+    id        String         @id @default(auto()) @map("_id") @db.ObjectId
+    userId    String         @db.ObjectId
+    schoolId  String         @db.ObjectId
+    role      UserSchoolRole // Role of the user within this specific school
+    status    AccountStatus  @default(ACTIVE) // e.g., INVITED, ACTIVE, INACTIVE if they leave the school
+    joinedAt  DateTime       @default(now())
+    updatedAt DateTime       @updatedAt
+
+    user   User   @relation(fields: [userId], references: [id])
+    school School @relation(fields: [schoolId], references: [id])
+
+    // Teacher specific details within this school context
+    teacherSchoolBio      String? // Overrides generic User.teacherBio for this school
+    teacherSchoolSubjects Subject[] @relation("TeacherFormalSubjects") // Formal subjects taught in this school
+
+    // Staff specific details
+    staffTitle String? // e.g., "Librarian", "Counselor"
+
+    @@unique([userId, schoolId, role]) // A user typically has one primary role per school.
+    // If multiple roles are needed (e.g. Teacher + Admin), consider a list or separate permission system.
+    @@index([userId])
+    @@index([schoolId])
+}
+
+// School Model
+model School {
+    id                String        @id @default(auto()) @map("_id") @db.ObjectId
+    name              String
+    schoolType        SchoolType
+    address           SchoolAddress // Embedded type
+    contactPhone      String?
+    contactEmail      String?       @unique // General school email
+    logoUrl           String?
+    brandingThemeJson Json? // { primaryColor: "#...", secondaryColor: "..." }
+    platformSubdomain String?       @unique // e.g., "greenwood" for greenwood.yourplatform.com
+    customDomain      String?       @unique
+    status            SchoolStatus  @default(SETUP_IN_PROGRESS)
+    schoolCode        String        @unique // Auto-generated code for users to join
+    creatorId         String        @db.ObjectId // User who initiated school setup
+    createdAt         DateTime      @default(now())
+    updatedAt         DateTime      @updatedAt
+
+    creator             User                 @relation("SchoolCreator", fields: [creatorId], references: [id])
+    userLinks           UserSchoolLink[] // All users associated with this school and their roles
+    academicYears       AcademicYear[]
+    gradeLevels         GradeLevel[]
+    subjects            Subject[]
+    departments         Department[]
+    gradingPolicies     GradingPolicy[]
+    platformSettings    PlatformSetting[] // School-specific feature toggles, etc.
+    integrations        SchoolIntegration[]
+    auditLogEntries     AuditLogEntry[]      @relation("SchoolAuditLog")
+    courseCatalog       Course[] // Master list of courses offered
+    schoolAnnouncements SchoolAnnouncement[]
+    schoolEvents        SchoolEvent[]
+    parentStudentLinks  ParentStudentLink[] // All parent-student links within this school
+    questionBanks       QuestionBank[] // School-wide question banks
+    sharedResources     TeacherResource[]    @relation("SchoolSharedResources") // Resources shared school-wide
+}
+
+// Embedded type for Address
+type SchoolAddress {
+    streetLine1 String?
+    streetLine2 String?
+    city        String?
+    state       String? // Or province
+    postalCode  String?
+    country     String
+}
+
+model AcademicYear {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    name      String // e.g., "2025-2026 Academic Year"
+    startDate DateTime
+    endDate   DateTime
+    schoolId  String   @db.ObjectId
+    isCurrent Boolean  @default(false) // Indicates the currently active academic year
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    school School @relation(fields: [schoolId], references: [id])
+    terms  Term[]
+
+    @@unique([schoolId, name])
+    @@index([schoolId])
+}
+
+model Term {
+    id             String   @id @default(auto()) @map("_id") @db.ObjectId
+    name           String // e.g., "Semester 1", "Fall Quarter"
+    startDate      DateTime
+    endDate        DateTime
+    academicYearId String   @db.ObjectId
+    createdAt      DateTime @default(now())
+    updatedAt      DateTime @updatedAt
+
+    academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+    classes      Class[]
+
+    @@unique([academicYearId, name])
+    @@index([academicYearId])
+}
+
+model GradeLevel {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    name      String // e.g., "Grade 1", "Year 10", "Freshman"
+    shortCode String? // e.g., "G1", "Y10"
+    schoolId  String   @db.ObjectId
+    order     Int? // For sorting grade levels
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    school  School   @relation(fields: [schoolId], references: [id])
+    courses Course[] @relation("CourseGradeLevels") // Courses typically offered at this grade level
+    classes Class[]  @relation("ClassGradeLevels") // Classes specifically for this grade level
+
+    @@unique([schoolId, name])
+    @@index([schoolId])
+}
+
+model Subject {
+    id           String   @id @default(auto()) @map("_id") @db.ObjectId
+    name         String // e.g., "Mathematics", "History"
+    description  String?
+    subjectCode  String? // e.g., "MATH", "HIST"
+    schoolId     String   @db.ObjectId
+    departmentId String?  @db.ObjectId // Optional: if subjects are organized under departments
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
+
+    school              School               @relation(fields: [schoolId], references: [id])
+    department          Department?          @relation(fields: [departmentId], references: [id])
+    courses             Course[] // Courses in this subject
+    curriculumStandards CurriculumStandard[]
+    teacherLinks        UserSchoolLink[]     @relation("TeacherFormalSubjects") // Teachers formally assigned to this subject in this school
+    questionBanks       QuestionBank[]       @relation("SubjectQuestionBanks")
+
+    @@unique([schoolId, name])
+    @@unique([schoolId, subjectCode])
+    @@index([schoolId])
+    @@index([departmentId])
+}
+
+model Department {
+    id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+    name               String // e.g., "Science Department", "Humanities"
+    schoolId           String   @db.ObjectId
+    headOfDepartmentId String?  @db.ObjectId // User ID of the HOD (must be a UserSchoolLink with Teacher/Admin role)
+    createdAt          DateTime @default(now())
+    updatedAt          DateTime @updatedAt
+
+    school   School    @relation(fields: [schoolId], references: [id])
+    // headOfDepartment User?     @relation("DepartmentHead", fields: [headOfDepartmentId], references: [id]) // This User should have an appropriate UserSchoolLink
+    subjects Subject[] // Subjects belonging to this department
+
+    @@unique([schoolId, name])
+    @@index([schoolId])
+}
+
+model CurriculumStandard {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    code        String? // e.g., "MA.G10.1.A", "CCSS.ELA-Literacy.RL.9-10.1"
+    description String
+    subjectId   String   @db.ObjectId
+    schoolId    String   @db.ObjectId // Standards can be school-specific or adaptations
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    subject         Subject                    @relation(fields: [subjectId], references: [id])
+    school          School                     @relation(fields: [schoolId], references: [id])
+    lessonStandards LessonCurriculumStandard[]
+
+    @@index([subjectId])
+    @@index([schoolId])
+}
+
+model GradingPolicy {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    name      String // e.g., "Standard K-12 Letter Grades", "University Percentage Scale"
+    scaleJson Json // [{ grade: "A+", minScore: 97, maxScore: 100 }, { grade: "A", minScore: 93, maxScore: 96.99 }, ...]
+    isDefault Boolean  @default(false) // Default grading policy for the school
+    schoolId  String   @db.ObjectId
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    school  School   @relation(fields: [schoolId], references: [id])
+    courses Course[] @relation("CourseDefaultGradingPolicy") // Courses using this as default
+    classes Class[]  @relation("ClassGradingPolicy") // Classes explicitly using this
+
+    @@unique([schoolId, name])
+    @@index([schoolId])
+}
+
+model PlatformSetting {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    schoolId    String   @db.ObjectId
+    settingKey  String // e.g., "ALLOW_PARENT_TEACHER_MESSAGING", "MAX_FILE_UPLOAD_SIZE_MB"
+    value       String // Could be "true", "false", a number, or JSON string for complex settings
+    description String?
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    school School @relation(fields: [schoolId], references: [id])
+
+    @@unique([schoolId, settingKey])
+    @@index([schoolId])
+}
+
+model SchoolIntegration {
+    id         String   @id @default(auto()) @map("_id") @db.ObjectId
+    schoolId   String   @db.ObjectId
+    type       String // e.g., "SIS", "LTI_PROVIDER", "PAYMENT_GATEWAY", "VIDEO_CONFERENCING"
+    name       String // e.g., "PowerSchool", "Zoom LTI", "Stripe"
+    configJson Json // API keys, URLs, shared secrets, etc.
+    isEnabled  Boolean  @default(false)
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+
+    school School @relation(fields: [schoolId], references: [id])
+
+    @@unique([schoolId, name, type])
+    @@index([schoolId])
+}
+
+model AuditLogEntry {
+    id           String   @id @default(auto()) @map("_id") @db.ObjectId
+    timestamp    DateTime @default(now())
+    userId       String?  @db.ObjectId // User who performed the action (null if system action)
+    userFullName String? // Denormalized for easier display
+    userEmail    String? // Denormalized
+    schoolId     String?  @db.ObjectId // School context, if applicable
+    action       String // e.g., "USER_LOGIN", "COURSE_CREATED", "GRADE_UPDATED", "SCHOOL_SETTINGS_CHANGED"
+    entityType   String? // e.g., "User", "Course", "Assignment"
+    entityId     String? // ID of the affected entity
+    detailsJson  Json? // Before/after values or other relevant info
+    ipAddress    String?
+
+    user   User?   @relation("UserAuditLog", fields: [userId], references: [id])
+    school School? @relation("SchoolAuditLog", fields: [schoolId], references: [id])
+
+    @@index([timestamp])
+    @@index([userId])
+    @@index([schoolId])
+    @@index([action])
+    @@index([entityType, entityId])
+}
+
+// Course (Template/Catalog Entry)
+model Course {
+    id                     String       @id @default(auto()) @map("_id") @db.ObjectId
+    title                  String
+    courseCode             String? // e.g., "MATH101", "ENG-203"
+    description            String?
+    schoolId               String       @db.ObjectId // Belongs to this school's catalog
+    subjectId              String?      @db.ObjectId // Primary subject area
+    gradeLevels            GradeLevel[] @relation("CourseGradeLevels") // Target grade levels
+    creatorId              String?      @db.ObjectId // User (Admin/Teacher) who created/manages this course template
+    syllabusUrl            String? // Link to a detailed syllabus document
+    learningObjectivesJson Json? // Array of strings or structured objectives
+    defaultGradingPolicyId String?      @db.ObjectId
+    estimatedDuration      String? // e.g., "16 weeks", "1 semester"
+    prerequisites          String? // Textual description or link to other course IDs
+    createdAt              DateTime     @default(now())
+    updatedAt              DateTime     @updatedAt
+
+    school               School         @relation(fields: [schoolId], references: [id])
+    subject              Subject?       @relation(fields: [subjectId], references: [id])
+    creator              User?          @relation("CourseCreator", fields: [creatorId], references: [id])
+    defaultGradingPolicy GradingPolicy? @relation("CourseDefaultGradingPolicy", fields: [defaultGradingPolicyId], references: [id])
+    classes              Class[] // Scheduled instances of this course
+    courseModules        CourseModule[] // Default modules/structure for this course template
+
+    @@unique([schoolId, title])
+    @@unique([schoolId, courseCode]) // courseCode should be unique within a school if used
+    @@index([schoolId])
+    @@index([subjectId])
+    @@index([creatorId])
+}
+
+// Class (Scheduled Instance of a Course)
+model Class {
+    id                  String       @id @default(auto()) @map("_id") @db.ObjectId
+    name                String // e.g., "Algebra I - Section A - Fall 2024", "ENG-203-001"
+    courseId            String       @db.ObjectId // Links to the Course template
+    termId              String       @db.ObjectId
+    schoolId            String       @db.ObjectId // Denormalized for easier queries, but tied via Course and Term
+    classCode           String?      @unique // Optional code for students to join this specific class instance
+    gradeLevels         GradeLevel[] @relation("ClassGradeLevels") // Specific grade levels for this class instance
+    maxCapacity         Int?
+    meetingTimesJson    Json? // [{ dayOfWeek: "Monday", startTime: "09:00", endTime: "10:00", room: "101", type: "Lecture" }, ...]
+    gradingPolicyId     String?      @db.ObjectId // Override school/course default grading policy
+    virtualClassroomUrl String? // Persistent link for this class's online meetings
+    createdAt           DateTime     @default(now())
+    updatedAt           DateTime     @updatedAt
+
+    course             Course                    @relation(fields: [courseId], references: [id])
+    term               Term                      @relation(fields: [termId], references: [id])
+    school             School                    @relation(fields: [schoolId], references: [id]) // Ensures consistency
+    gradingPolicy      GradingPolicy?            @relation("ClassGradingPolicy", fields: [gradingPolicyId], references: [id])
+    teachers           ClassTeacherAssignment[]
+    studentEnrollments StudentEnrollment[]
+    classModules       ClassModule[] // Actual modules for this specific class instance (can be customized)
+    assignments        Assignment[]
+    quizzes            Quiz[]
+    // gradebookEntries GradebookEntry[]    // Consider if a separate gradebook summary table is needed or derived
+    attendanceRecords  ClassAttendanceRecord[]
+    discussionForums   DiscussionForum[]
+    classAnnouncements ClassAnnouncement[]
+    virtualSessions    VirtualClassroomSession[]
+
+    @@index([courseId])
+    @@index([termId])
+    @@index([schoolId])
+}
+
+model ClassTeacherAssignment {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    classId     String   @db.ObjectId
+    teacherId   String   @db.ObjectId // User ID of the teacher
+    roleInClass String? // e.g., "Primary Teacher", "Co-Teacher", "Teaching Assistant"
+    isPrimary   Boolean  @default(false)
+    createdAt   DateTime @default(now())
+
+    class   Class @relation(fields: [classId], references: [id])
+    teacher User  @relation("classAssignments", fields: [teacherId], references: [id])
+
+    @@unique([classId, teacherId]) // A teacher is assigned once to a class, role can specify details
+    @@index([classId])
+    @@index([teacherId])
+}
+
+model StudentEnrollment {
+    id             String           @id @default(auto()) @map("_id") @db.ObjectId
+    classId        String           @db.ObjectId
+    studentId      String           @db.ObjectId // User ID of the student
+    enrollmentDate DateTime         @default(now())
+    status         EnrollmentStatus @default(PENDING_APPROVAL)
+    droppedDate    DateTime?
+    finalGrade     String? // e.g., "A", "Pass", "85%" (consider structured grade if complex)
+    finalFeedback  String?
+    createdAt      DateTime         @default(now())
+    updatedAt      DateTime         @updatedAt
+
+    class   Class @relation(fields: [classId], references: [id])
+    student User  @relation("StudentEnrollments", fields: [studentId], references: [id])
+
+    @@unique([classId, studentId])
+    @@index([classId])
+    @@index([studentId])
+    @@index([status])
+}
+
+// Modules for a Course (template structure)
+model CourseModule {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    title       String
+    description String?
+    order       Int // Order of module in the course template
+    courseId    String   @db.ObjectId
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    course        Course         @relation(fields: [courseId], references: [id])
+    courseLessons CourseLesson[] // Default lessons for this module template
+
+    @@unique([courseId, order])
+    @@index([courseId])
+}
+
+// Lessons for a CourseModule (template structure)
+model CourseLesson {
+    id                             String   @id @default(auto()) @map("_id") @db.ObjectId
+    title                          String
+    description                    String?
+    order                          Int // Order of lesson in the course module template
+    courseModuleId                 String   @db.ObjectId
+    estimatedCompletionTimeMinutes Int?
+    createdAt                      DateTime @default(now())
+    updatedAt                      DateTime @updatedAt
+
+    courseModule CourseModule @relation(fields: [courseModuleId], references: [id])
+    // Default materials for this lesson template can be added here if needed
+    // courseMaterials CourseLearningMaterial[]
+
+    @@unique([courseModuleId, order])
+    @@index([courseModuleId])
+}
+
+// Modules for a specific Class instance (can be customized from CourseModule or created new)
+model ClassModule {
+    id                   String    @id @default(auto()) @map("_id") @db.ObjectId
+    title                String
+    description          String?
+    order                Int // Order within the class
+    classId              String    @db.ObjectId
+    sourceCourseModuleId String?   @db.ObjectId // Optional: if derived from a CourseModule template
+    isVisibleToStudents  Boolean   @default(true)
+    availabilityDate     DateTime? // When this module becomes visible/accessible
+    completionCriteria   String? // e.g., "Complete all lessons", "Score 70% on module quiz"
+    createdAt            DateTime  @default(now())
+    updatedAt            DateTime  @updatedAt
+
+    class              Class         @relation(fields: [classId], references: [id])
+    sourceCourseModule CourseModule? @relation(fields: [sourceCourseModuleId], references: [id])
+    lessons            Lesson[]
+
+    @@unique([classId, order])
+    @@index([classId])
+}
+
+model Lesson {
+    id                             String   @id @default(auto()) @map("_id") @db.ObjectId
+    title                          String
+    description                    String?
+    order                          Int // Order within the class module
+    classModuleId                  String   @db.ObjectId
+    sourceCourseLessonId           String?  @db.ObjectId // Optional: if derived from a CourseLesson template
+    content                        String? // For simple text-based lessons or main content body
+    estimatedCompletionTimeMinutes Int?
+    createdAt                      DateTime @default(now())
+    updatedAt                      DateTime @updatedAt
+
+    classModule         ClassModule                @relation(fields: [classModuleId], references: [id])
+    sourceCourseLesson  CourseLesson?              @relation(fields: [sourceCourseLessonId], references: [id])
+    learningMaterials   LearningMaterial[]
+    lessonStandards     LessonCurriculumStandard[]
+    activityCompletions ActivityCompletion[]       @relation("LessonActivity") // Track completion for this lesson
+
+    @@unique([classModuleId, order])
+    @@index([classModuleId])
+}
+
+model LessonCurriculumStandard {
+    id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+    lessonId             String   @db.ObjectId
+    curriculumStandardId String   @db.ObjectId
+    createdAt            DateTime @default(now())
+
+    lesson             Lesson             @relation(fields: [lessonId], references: [id])
+    curriculumStandard CurriculumStandard @relation(fields: [curriculumStandardId], references: [id])
+
+    @@unique([lessonId, curriculumStandardId])
+    @@index([lessonId])
+    @@index([curriculumStandardId])
+}
+
+model LearningMaterial {
+    id            String       @id @default(auto()) @map("_id") @db.ObjectId
+    title         String
+    type          MaterialType
+    content       String? // For TEXT_PAGE, EXTERNAL_LINK (URL), VIDEO_EMBED (embed code/URL), AUDIO_EMBED (URL)
+    filePath      String? // For FILE_UPLOAD (path to stored file)
+    fileName      String? // Original file name for downloads
+    fileSize      Int? // In bytes
+    mimeType      String?
+    ltiUrl        String? // For LTI_TOOL launch URL
+    ltiConfigJson Json? // Custom parameters for LTI launch
+    lessonId      String       @db.ObjectId
+    order         Int // Order of material within the lesson
+    isRequired    Boolean      @default(true)
+    createdAt     DateTime     @default(now())
+    updatedAt     DateTime     @updatedAt
+
+    lesson              Lesson               @relation(fields: [lessonId], references: [id])
+    activityCompletions ActivityCompletion[] @relation("MaterialActivity") // Track completion for this material
+
+    @@unique([lessonId, order])
+    @@index([lessonId])
+}
+
+model Assignment {
+    id                           String    @id @default(auto()) @map("_id") @db.ObjectId
+    title                        String
+    instructions                 String?
+    classId                      String    @db.ObjectId
+    creatorId                    String    @db.ObjectId // Teacher (User ID) who created it
+    dueDate                      DateTime?
+    availableDate                DateTime? // When assignment becomes visible/submittable
+    maxPoints                    Float?
+    attachmentsJson              Json? // Array of { name: "file.pdf", url: "path/to/file.pdf", type: "reference" / "template" }
+    allowSubmissionsAfterDueDate Boolean   @default(true)
+    gradingRubricJson            Json? // Structured rubric data
+    submissionType               String // e.g., "ONLINE_UPLOAD", "ONLINE_TEXT", "ON_PAPER", "OBSERVATION"
+    turnitinEnabled              Boolean   @default(false) // Example integration
+    createdAt                    DateTime  @default(now())
+    updatedAt                    DateTime  @updatedAt
+
+    class               Class                  @relation(fields: [classId], references: [id])
+    creator             User                   @relation("AssignmentCreator", fields: [creatorId], references: [id])
+    submissions         AssignmentSubmission[]
+    activityCompletions ActivityCompletion[]   @relation("AssignmentActivity") // Track overall assignment interaction
+
+    @@index([classId])
+    @@index([creatorId])
+    @@index([dueDate])
+}
+
+model AssignmentSubmission {
+    id                 String           @id @default(auto()) @map("_id") @db.ObjectId
+    assignmentId       String           @db.ObjectId
+    studentId          String           @db.ObjectId // User ID
+    submissionDate     DateTime         @default(now())
+    attemptNumber      Int              @default(1)
+    onlineTextContent  String? // For text-based submissions
+    submittedFilesJson Json? // Array of { name: "submission.pdf", url: "path/to/submission.pdf", size: 12345 }
+    grade              Float?
+    feedback           String? // Teacher's textual feedback
+    feedbackFilesJson  Json? // Teacher's feedback files (e.g., annotated submissions)
+    gradedById         String?          @db.ObjectId // Teacher (User ID) who graded
+    gradedDate         DateTime?
+    status             SubmissionStatus @default(SUBMITTED)
+    createdAt          DateTime         @default(now())
+    updatedAt          DateTime         @updatedAt
+
+    assignment Assignment @relation(fields: [assignmentId], references: [id])
+    student    User       @relation("StudentSubmission", fields: [studentId], references: [id])
+    grader     User?      @relation("Grader", fields: [gradedById], references: [id])
+
+    @@unique([assignmentId, studentId, attemptNumber]) // Allows for multiple attempts if enabled
+    @@index([assignmentId])
+    @@index([studentId])
+    @@index([gradedById])
+    @@index([status])
+}
+
+model Quiz {
+    id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+    title              String
+    instructions       String?
+    classId            String    @db.ObjectId
+    creatorId          String    @db.ObjectId // Teacher (User ID)
+    timeLimitMinutes   Int?
+    attemptsAllowed    Int       @default(1)
+    shuffleQuestions   Boolean   @default(false)
+    shuffleAnswers     Boolean   @default(false) // For multiple choice options
+    showCorrectAnswers String // Enum-like: "NEVER", "AFTER_EACH_ATTEMPT", "AFTER_QUIZ_ENDS", "AFTER_DUE_DATE", "ON_SPECIFIC_DATE"
+    feedbackType       String // Enum-like: "NONE", "OVERALL", "PER_QUESTION"
+    availableDate      DateTime? // When quiz becomes visible/takeable
+    dueDate            DateTime? // Submission deadline
+    gradingType        String // Enum-like: "AUTO_GRADED", "MANUAL_REVIEW_REQUIRED", "MIXED"
+    passwordProtected  String? // Optional password to access quiz
+    createdAt          DateTime  @default(now())
+    updatedAt          DateTime  @updatedAt
+
+    class               Class                @relation(fields: [classId], references: [id])
+    creator             User                 @relation("QuizCreator", fields: [creatorId], references: [id])
+    questions           QuizQuestionLink[]
+    attempts            QuizAttempt[]
+    activityCompletions ActivityCompletion[] @relation("QuizActivity") // Track overall quiz interaction
+
+    @@index([classId])
+    @@index([creatorId])
+    @@index([dueDate])
+}
+
+model QuestionBank {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    name        String
+    description String?
+    schoolId    String   @db.ObjectId // School this bank belongs to
+    creatorId   String?  @db.ObjectId // Optional: if a specific teacher "owns" or primarily manages it
+    subjectId   String?  @db.ObjectId // Optional: for better organization by subject
+    isShared    Boolean  @default(false) // If shared with other teachers in the school/subject
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    school    School     @relation(fields: [schoolId], references: [id])
+    creator   User?      @relation("QuestionBankCreator", fields: [creatorId], references: [id])
+    subject   Subject?   @relation("SubjectQuestionBanks", fields: [subjectId], references: [id])
+    questions Question[]
+
+    @@unique([schoolId, name])
+    @@index([schoolId])
+    @@index([creatorId])
+    @@index([subjectId])
+}
+
+model Question {
+    id                String       @id @default(auto()) @map("_id") @db.ObjectId
+    text              String // The question itself (can include HTML for rich formatting)
+    type              QuestionType
+    optionsJson       Json? // For MC/TF/Matching: Array of { id: "opt1", text: "Option A", isCorrect: true/false, feedback?: "..." }
+    correctAnswerJson Json? // For SHORT_ANSWER (array of accepted strings), FILL_IN_THE_BLANKS (array of objects for blanks)
+    points            Float        @default(1)
+    questionBankId    String?      @db.ObjectId // Can belong to a bank
+    creatorId         String?      @db.ObjectId // Teacher who created it if not from bank or customizing bank q
+    difficultyLevel   String? // e.g., "Easy", "Medium", "Hard"
+    generalFeedback   String? // Feedback shown regardless of answer
+    tags              String[] // For categorization and search
+    isReusable        Boolean      @default(true) // Can this question be reused in other quizzes?
+    createdAt         DateTime     @default(now())
+    updatedAt         DateTime     @updatedAt
+
+    questionBank   QuestionBank?       @relation(fields: [questionBankId], references: [id])
+    creator        User?               @relation("QuestionCreator", fields: [creatorId], references: [id])
+    quizLinks      QuizQuestionLink[]
+    studentAnswers StudentQuizAnswer[]
+
+    @@index([questionBankId])
+    @@index([creatorId])
+    @@index([type])
+}
+
+// Link table for Quiz and Question, allowing ordering and specific points per quiz
+model QuizQuestionLink {
+    id             String   @id @default(auto()) @map("_id") @db.ObjectId
+    quizId         String   @db.ObjectId
+    questionId     String   @db.ObjectId
+    order          Int // Order of question in this quiz
+    pointsOverride Float? // If points for this question in this quiz differ from Question.points
+    questionGroup  String? // For grouping questions within a quiz (e.g., "Section 1")
+    createdAt      DateTime @default(now())
+
+    quiz     Quiz     @relation(fields: [quizId], references: [id])
+    question Question @relation(fields: [questionId], references: [id])
+
+    @@unique([quizId, questionId]) // Question appears once per quiz
+    @@unique([quizId, order]) // Order is unique within a quiz
+    @@index([quizId])
+    @@index([questionId])
+}
+
+model QuizAttempt {
+    id              String    @id @default(auto()) @map("_id") @db.ObjectId
+    quizId          String    @db.ObjectId
+    studentId       String    @db.ObjectId // User ID
+    attemptNumber   Int
+    startTime       DateTime  @default(now())
+    endTime         DateTime? // When student submits or time runs out
+    score           Float? // Overall score for this attempt
+    isGraded        Boolean   @default(false) // True if all auto-gradable parts are done, or manual grading is complete
+    teacherFeedback String? // Overall feedback for the attempt from teacher
+    createdAt       DateTime  @default(now())
+    updatedAt       DateTime  @updatedAt
+
+    quiz           Quiz                @relation(fields: [quizId], references: [id])
+    student        User                @relation("StudentQuizAttempt", fields: [studentId], references: [id])
+    studentAnswers StudentQuizAnswer[]
+
+    @@unique([quizId, studentId, attemptNumber])
+    @@index([quizId])
+    @@index([studentId])
+}
+
+model StudentQuizAnswer {
+    id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+    quizAttemptId      String   @db.ObjectId
+    questionId         String   @db.ObjectId
+    quizQuestionLinkId String?  @db.ObjectId // Link to the specific instance in the quiz (for order, pointsOverride)
+    answerJson         Json? // Student's choice(s) for MC/TF (e.g. ["opt1"]), text for short answer/essay
+    isCorrect          Boolean? // For auto-gradable questions
+    scoreAwarded       Float? // Points awarded for this specific answer
+    teacherComment     String? // For manually graded answers or additional feedback
+    autoGradingLog     Json? // Details from auto-grading process
+    flaggedForReview   Boolean  @default(false) // Student or system flagged this answer
+    createdAt          DateTime @default(now())
+    updatedAt          DateTime @updatedAt
+
+    quizAttempt QuizAttempt @relation(fields: [quizAttemptId], references: [id])
+    question    Question    @relation(fields: [questionId], references: [id])
+    // quizQuestionLink QuizQuestionLink? @relation(fields: [quizQuestionLinkId], references: [id])
+
+    @@unique([quizAttemptId, questionId]) // One answer per question per attempt
+    @@index([quizAttemptId])
+    @@index([questionId])
+}
+
+model ClassAttendanceRecord {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    classId   String   @db.ObjectId
+    date      DateTime // Date (and optionally time) of the class session for which attendance is taken
+    notes     String? // e.g., "School assembly", "Substitute teacher: Mr. Smith"
+    takenById String?  @db.ObjectId // Teacher (User ID) who took/recorded attendance
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    class           Class                     @relation(fields: [classId], references: [id])
+    takenBy         User?                     @relation("AttendanceTaker", fields: [takenById], references: [id])
+    studentStatuses StudentAttendanceStatus[]
+
+    @@unique([classId, date]) // Assuming one attendance record per class per specific date/session time
+    @@index([classId])
+    @@index([date])
+}
+
+model StudentAttendanceStatus {
+    id                 String           @id @default(auto()) @map("_id") @db.ObjectId
+    attendanceRecordId String           @db.ObjectId
+    studentId          String           @db.ObjectId // User ID
+    status             AttendanceStatus
+    notes              String? // e.g., "Arrived 10 mins late due to bus", "Left early for appointment"
+    verifiedByParent   Boolean          @default(false)
+    createdAt          DateTime         @default(now())
+    updatedAt          DateTime         @updatedAt
+
+    attendanceRecord ClassAttendanceRecord @relation(fields: [attendanceRecordId], references: [id])
+    student          User                  @relation(fields: [studentId], references: [id])
+
+    @@unique([attendanceRecordId, studentId])
+    @@index([attendanceRecordId])
+    @@index([studentId])
+}
+
+model DiscussionForum {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    title       String
+    description String?
+    classId     String?  @db.ObjectId // For class-specific forums
+    schoolId    String?  @db.ObjectId // For school-wide forums (e.g., by admins for general topics)
+    isModerated Boolean  @default(true)
+    isArchived  Boolean  @default(false)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    class   Class?             @relation(fields: [classId], references: [id])
+    school  School?            @relation(fields: [schoolId], references: [id]) // If school-wide
+    threads DiscussionThread[]
+
+    @@index([classId])
+    @@index([schoolId])
+}
+
+model DiscussionThread {
+    id               String    @id @default(auto()) @map("_id") @db.ObjectId
+    title            String
+    forumId          String    @db.ObjectId
+    creatorId        String    @db.ObjectId // User ID
+    isPinned         Boolean   @default(false)
+    isLocked         Boolean   @default(false) // No more replies allowed
+    viewCount        Int       @default(0)
+    lastReplyAt      DateTime?
+    tags             String[]
+    firstPostContent String // Store the initial post content here for quick preview
+    createdAt        DateTime  @default(now())
+    updatedAt        DateTime  @updatedAt
+
+    forum   DiscussionForum  @relation(fields: [forumId], references: [id])
+    creator User             @relation("ThreadCreator", fields: [creatorId], references: [id])
+    posts   DiscussionPost[]
+
+    @@index([forumId])
+    @@index([creatorId])
+    @@index([lastReplyAt])
+}
+
+model DiscussionPost {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    threadId    String   @db.ObjectId
+    creatorId   String   @db.ObjectId // User ID
+    content     String // Can be rich text/HTML
+    parentId    String?  @db.ObjectId // For replies to other posts (forming a tree)
+    isAnonymous Boolean  @default(false) // If forum allows anonymous posts
+    upvotes     Int      @default(0)
+    downvotes   Int      @default(0)
+    isEdited    Boolean  @default(false)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    thread     DiscussionThread @relation(fields: [threadId], references: [id])
+    creator    User             @relation("PostCreator", fields: [creatorId], references: [id])
+    parentPost DiscussionPost?  @relation("Replies", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+    replies    DiscussionPost[] @relation("Replies")
+
+    @@index([threadId])
+    @@index([creatorId])
+    @@index([parentId])
+}
+
+model DirectMessage {
+    id                String    @id @default(auto()) @map("_id") @db.ObjectId
+    senderId          String    @db.ObjectId
+    receiverId        String    @db.ObjectId
+    content           String // Can be rich text/HTML
+    attachmentsJson   Json? // Array of { name: "file.pdf", url: "path/to/file.pdf" }
+    timestamp         DateTime  @default(now())
+    isRead            Boolean   @default(false)
+    readAt            DateTime?
+    conversationId    String // Groups messages between two users (e.g., sorted user IDs concatenated)
+    classContextId    String?   @db.ObjectId // Optional: if message is in context of a class
+    schoolContextId   String?   @db.ObjectId // Optional: if message is in context of a school
+    deletedBySender   Boolean   @default(false)
+    deletedByReceiver Boolean   @default(false)
+    createdAt         DateTime  @default(now())
+    updatedAt         DateTime  @updatedAt
+
+    sender   User @relation("SentMessages", fields: [senderId], references: [id])
+    receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id])
+    // class    Class? @relation(fields: [classContextId], references: [id]) // Add relation if needed
+    // school   School? @relation(fields: [schoolContextId], references: [id]) // Add relation if needed
+
+    @@index([conversationId, timestamp])
+    @@index([senderId, isRead])
+    @@index([receiverId, isRead])
+}
+
+model VirtualClassroomSession {
+    id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+    title              String
+    classId            String    @db.ObjectId
+    hostId             String    @db.ObjectId // Teacher (User ID) hosting
+    description        String?
+    scheduledStartTime DateTime
+    scheduledEndTime   DateTime
+    actualStartTime    DateTime?
+    actualEndTime      DateTime?
+    meetingUrl         String? // URL to join (e.g., Zoom, Meet, Teams)
+    recordingUrl       String? // URL of the recording after session
+    status             String // e.g., SCHEDULED, LIVE, COMPLETED, CANCELLED, ARCHIVED
+    password           String? // Optional password to join
+    agendaJson         Json? // Structured agenda
+    createdAt          DateTime  @default(now())
+    updatedAt          DateTime  @updatedAt
+
+    class Class @relation(fields: [classId], references: [id])
+    host  User  @relation("SessionHost", fields: [hostId], references: [id])
+    // Could add attendance: VirtualSessionAttendance { sessionId, userId, joinedAt, leftAt }
+
+    @@index([classId])
+    @@index([hostId])
+    @@index([scheduledStartTime])
+}
+
+model TeacherResource {
+    id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+    title                String
+    description          String?
+    filePath             String? // If it's a file stored by the platform
+    linkUrl              String? // If it's an external link
+    type                 String // e.g., FILE, LINK, TEXT_SNIPPET, VIDEO_ID
+    content              String? // For text snippets or embed codes
+    teacherId            String   @db.ObjectId // User ID of the teacher who owns/uploaded it
+    schoolId             String?  @db.ObjectId // If shared at school level or belongs to school context
+    isSharedSchoolWide   Boolean  @default(false) // Explicitly shared with all teachers in the school
+    isSharedDistrictWide Boolean  @default(false) // If platform supports districts
+    subjectIds           String[] @db.ObjectId // Link to Subject IDs for categorization
+    gradeLevelIds        String[] @db.ObjectId // Link to GradeLevel IDs
+    tags                 String[]
+    createdAt            DateTime @default(now())
+    updatedAt            DateTime @updatedAt
+
+    teacher User    @relation("TeacherOwnedResource", fields: [teacherId], references: [id])
+    school  School? @relation("SchoolSharedResources", fields: [schoolId], references: [id])
+    // subjects     Subject[] @relation(fields: [subjectIds], references: [id]) // Many-to-many needs explicit relation table
+    // gradeLevels  GradeLevel[] @relation(fields: [gradeLevelIds], references: [id]) // Same as above
+
+    @@index([teacherId])
+    @@index([schoolId, isSharedSchoolWide])
+}
+
+model StudentNote {
+    id              String   @id @default(auto()) @map("_id") @db.ObjectId
+    studentId       String   @db.ObjectId // User ID
+    content         String // Rich text content of the note
+    title           String?
+    contextItemId   String? // ID of Course, Class, Lesson, Material, Assignment this note refers to
+    contextItemType String? // "COURSE", "CLASS", "LESSON", "MATERIAL", "ASSIGNMENT", "GENERAL"
+    color           String? // e.g., "yellow", "#FFFF00" for note appearance
+    tags            String[]
+    isPinned        Boolean  @default(false)
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+
+    student User @relation(fields: [studentId], references: [id])
+    // Cannot directly link contextItemId polymorphically. Query based on type.
+
+    @@index([studentId])
+    @@index([studentId, contextItemType, contextItemId])
+}
+
+model FlashcardSet {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    title       String
+    description String?
+    studentId   String   @db.ObjectId // User ID of the creator
+    courseId    String?  @db.ObjectId // Optional: associated with a course
+    classId     String?  @db.ObjectId // Optional: associated with a class
+    subjectId   String?  @db.ObjectId // Optional: associated with a subject
+    isPublic    Boolean  @default(false) // If student wants to share it (e.g., with classmates)
+    tags        String[]
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    student    User        @relation(fields: [studentId], references: [id])
+    // course     Course?     @relation(fields: [courseId], references: [id]) // Add relation if needed
+    // class      Class?      @relation(fields: [classId], references: [id]) // Add relation if needed
+    // subject    Subject?    @relation(fields: [subjectId], references: [id]) // Add relation if needed
+    flashcards Flashcard[]
+
+    @@index([studentId])
+    @@index([isPublic])
+}
+
+model Flashcard {
+    id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+    flashcardSetId     String    @db.ObjectId
+    frontContent       String // Rich text/HTML
+    backContent        String // Rich text/HTML
+    order              Int? // Order within the set
+    imageFrontUrl      String?
+    imageBackUrl       String?
+    audioFrontUrl      String?
+    audioBackUrl       String?
+    lastReviewedAt     DateTime?
+    reviewIntervalDays Int? // For spaced repetition
+    easeFactor         Float? // For spaced repetition algorithms
+    createdAt          DateTime  @default(now())
+    updatedAt          DateTime  @updatedAt
+
+    flashcardSet FlashcardSet @relation(fields: [flashcardSetId], references: [id])
+
+    @@index([flashcardSetId])
+}
+
+// Tracks student completion/progress of various items
+model ActivityCompletion {
+    id               String    @id @default(auto()) @map("_id") @db.ObjectId
+    studentId        String    @db.ObjectId // User ID
+    itemId           String // ID of the completable item (Lesson, LearningMaterial, Assignment, Quiz)
+    itemType         String // "LESSON", "MATERIAL", "ASSIGNMENT", "QUIZ"
+    classId          String?   @db.ObjectId // Context of the class where item was completed
+    completedDate    DateTime  @default(now())
+    status           String // e.g., "NOT_STARTED", "IN_PROGRESS", "COMPLETED", "VIEWED"
+    progress         Float? // e.g., percentage for videos (0.0 to 1.0) or multi-part items
+    score            Float? // If the activity resulted in a score (e.g. auto-graded material interaction)
+    firstViewedAt    DateTime?
+    lastViewedAt     DateTime?
+    timeSpentSeconds Int?
+
+    student        User    @relation(fields: [studentId], references: [id])
+    // For typed access, you can add optional relations, but be cautious with too many.
+    // Querying by itemId and itemType is the primary way.
+    lesson         Lesson? @relation("LessonActivity", fields: [itemIdIfLesson], references: [id])
+    itemIdIfLesson String? @db.ObjectId // Store lesson ID here if itemType is LESSON
+
+    material         LearningMaterial? @relation("MaterialActivity", fields: [itemIdIfMaterial], references: [id])
+    itemIdIfMaterial String?           @db.ObjectId // Store material ID here if itemType is MATERIAL
+
+    assignment         Assignment? @relation("AssignmentActivity", fields: [itemIdIfAssignment], references: [id])
+    itemIdIfAssignment String?     @db.ObjectId // Store assignment ID here if itemType is ASSIGNMENT
+
+    quiz         Quiz?   @relation("QuizActivity", fields: [itemIdIfQuiz], references: [id])
+    itemIdIfQuiz String? @db.ObjectId // Store quiz ID here if itemType is QUIZ
+
+    @@unique([studentId, itemId, itemType, classId]) // Ensures one completion record per item per student in a class context
+    @@index([studentId])
+    @@index([itemId, itemType])
+    @@index([classId])
+    @@index([itemIdIfLesson])
+    @@index([itemIdIfMaterial])
+    @@index([itemIdIfAssignment])
+    @@index([itemIdIfQuiz])
+}
+
+model ParentStudentLink {
+    id                    String                @id @default(auto()) @map("_id") @db.ObjectId
+    parentId              String                @db.ObjectId // User ID of parent/guardian
+    studentId             String                @db.ObjectId // User ID of student
+    schoolId              String                @db.ObjectId // School context for this link (important if student is in multiple schools on platform)
+    relationship          RelationshipToStudent
+    invitationToken       String?               @unique // For parent to accept link if initiated by school/student
+    isVerified            Boolean               @default(false) // School or system verified this link
+    accessPermissionsJson Json? // Granular permissions: {"view_grades": true, "view_attendance": true, "message_teachers": false}
+    createdAt             DateTime              @default(now())
+    updatedAt             DateTime              @updatedAt
+
+    parent  User   @relation("ParentLinks", fields: [parentId], references: [id])
+    student User   @relation("ChildLinks", fields: [studentId], references: [id])
+    school  School @relation(fields: [schoolId], references: [id])
+
+    @@unique([parentId, studentId, schoolId]) // A parent is linked once to a student within a specific school context
+    @@index([parentId])
+    @@index([studentId])
+    @@index([schoolId])
+}
+
+model SchoolAnnouncement {
+    id                  String                         @id @default(auto()) @map("_id") @db.ObjectId
+    title               String
+    content             String // Rich text/HTML
+    schoolId            String                         @db.ObjectId
+    creatorId           String                         @db.ObjectId // Admin/Staff User ID
+    publishDate         DateTime                       @default(now())
+    expiryDate          DateTime?
+    targetAudienceType  AnnouncementTargetAudienceType @default(ALL_IN_SCHOOL)
+    targetRoles         UserSchoolRole[] // If targetAudienceType is SPECIFIC_ROLES
+    targetGradeLevelIds String[]                       @db.ObjectId // If targetAudienceType is SPECIFIC_GRADE_LEVELS
+    isUrgent            Boolean                        @default(false)
+    attachmentsJson     Json? // Array of { name: "file.pdf", url: "path/to/file.pdf" }
+    createdAt           DateTime                       @default(now())
+    updatedAt           DateTime                       @updatedAt
+
+    school  School @relation(fields: [schoolId], references: [id])
+    creator User   @relation("SchoolAnnouncementCreator", fields: [creatorId], references: [id])
+    // Read receipts: SchoolAnnouncementReadReceipt { announcementId, userId, readAt }
+
+    @@index([schoolId, publishDate])
+    @@index([creatorId])
+}
+
+model ClassAnnouncement {
+    id              String    @id @default(auto()) @map("_id") @db.ObjectId
+    title           String
+    content         String // Rich text/HTML
+    classId         String    @db.ObjectId
+    creatorId       String    @db.ObjectId // Teacher User ID
+    publishDate     DateTime  @default(now())
+    expiryDate      DateTime?
+    isPinned        Boolean   @default(false)
+    attachmentsJson Json? // Array of { name: "file.pdf", url: "path/to/file.pdf" }
+    createdAt       DateTime  @default(now())
+    updatedAt       DateTime  @updatedAt
+
+    class   Class @relation(fields: [classId], references: [id])
+    creator User  @relation("ClassAnnouncementCreator", fields: [creatorId], references: [id])
+    // Read receipts: ClassAnnouncementReadReceipt { announcementId, userId, readAt }
+
+    @@index([classId, publishDate])
+    @@index([creatorId])
+}
+
+model SchoolEvent {
+    id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+    title              String
+    description        String? // Rich text/HTML
+    schoolId           String    @db.ObjectId
+    creatorId          String?   @db.ObjectId // Admin/Staff User ID
+    startDateTime      DateTime
+    endDateTime        DateTime?
+    isAllDay           Boolean   @default(false)
+    location           String? // Physical location or virtual meeting link
+    category           String? // e.g., "Academic", "Sports", "Holiday", "Meeting", "Fundraiser"
+    targetAudienceJson Json? // { roles: ["STUDENT"], gradeLevels: ["Grade9", "Grade10"], specificClasses: ["classId1"] }
+    rsvpRequired       Boolean   @default(false)
+    rsvpDeadline       DateTime?
+    maxAttendees       Int?
+    attachmentsJson    Json?
+    createdAt          DateTime  @default(now())
+    updatedAt          DateTime  @updatedAt
+
+    school  School @relation(fields: [schoolId], references: [id])
+    creator User?  @relation("SchoolEventCreator", fields: [creatorId], references: [id])
+    // RSVPs: EventRsvp { eventId, userId, status: "ATTENDING" / "NOT_ATTENDING" / "MAYBE", rsvpDate }
+
+    @@index([schoolId, startDateTime])
+    @@index([creatorId])
+}
+
+// In-app notifications for users
+model Notification {
+    id                String           @id @default(auto()) @map("_id") @db.ObjectId
+    userId            String           @db.ObjectId // The user receiving the notification
+    type              NotificationType
+    title             String // Short title of the notification
+    message           String // Detailed message
+    link              String? // Deeplink to relevant page (e.g., /class/123/assignment/456)
+    isRead            Boolean          @default(false)
+    readAt            DateTime?
+    emitterEntityId   String? // ID of the entity that triggered the notification (e.g., assignmentId, messageId, announcementId)
+    emitterEntityType String? // Type of the emitter ("ASSIGNMENT", "MESSAGE", "ANNOUNCEMENT" etc.)
+    schoolContextId   String?          @db.ObjectId // Optional school context for the notification
+    createdAt         DateTime         @default(now())
+
+    user User @relation("UserNotification", fields: [userId], references: [id])
+    // school School? @relation(fields: [schoolContextId], references: [id]) // Add relation if needed
+
+    @@index([userId, isRead, createdAt])
+}
