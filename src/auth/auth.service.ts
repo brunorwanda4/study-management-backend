@@ -32,7 +32,7 @@ export class AuthService {
         private readonly jwtService: JwtService,
         private readonly schoolStaffService: SchoolStaffService,
         private readonly schoolService: SchoolService,
-    ) {}
+    ) { }
 
     /**
      * Authenticates a user based on login credentials.
@@ -94,19 +94,19 @@ export class AuthService {
 
         // Check if school-specific token is needed
         if (user.currentSchoolId && (user.role === 'SCHOOLSTAFF' || user.role === 'TEACHER')) {
-             try {
-                 const schoolAccessToken = await this.generateSchoolToken(user.id, user.currentSchoolId, user);
-                 if (schoolAccessToken) {
-                     tokenResponse.schoolAccessToken = schoolAccessToken;
-                 } else {
-                     // Log that expected school data was missing but proceed with base token
-                     this.logger.warn(`Could not generate school token for user ${user.id} and school ${user.currentSchoolId}. School or Staff data missing.`);
-                 }
-             } catch (error) {
-                 this.logger.error(`Failed to generate school token for user ${user.id}: ${error.message}`, error.stack);
-                 // Decide if you want to throw an error or just return the base token
-                 // throw new InternalServerErrorException('Failed to generate school-specific token');
-             }
+            try {
+                const schoolAccessToken = await this.generateSchoolToken(user.id, user.currentSchoolId, user);
+                if (schoolAccessToken) {
+                    tokenResponse.schoolAccessToken = schoolAccessToken;
+                } else {
+                    // Log that expected school data was missing but proceed with base token
+                    this.logger.warn(`Could not generate school token for user ${user.id} and school ${user.currentSchoolId}. School or Staff data missing.`);
+                }
+            } catch (error) {
+                this.logger.error(`Failed to generate school token for user ${user.id}: ${error.message}`, error.stack);
+                // Decide if you want to throw an error or just return the base token
+                // throw new InternalServerErrorException('Failed to generate school-specific token');
+            }
         }
 
         return tokenResponse;
@@ -185,9 +185,11 @@ export class AuthService {
             // Re-throw or handle specific errors (like Prisma unique constraint)
             // Example: Check for Prisma error codes (e.g., P2002 for unique constraint)
             if (error.code === 'P2002') { // Adjust based on actual Prisma error codes
-                 throw new BadRequestException('Email already exists.');
+                throw new BadRequestException('Email already exists.');
             }
             throw new InternalServerErrorException('Could not register user.');
         }
     }
+
+    
 }

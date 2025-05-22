@@ -13,6 +13,9 @@ import { SchoolService } from 'src/school/school.service';
 import { SchoolModule } from 'src/school/school.module';
 import { UploadService } from 'src/upload/upload.service';
 import { UploadModule } from 'src/upload/upload.module';
+import { ConfigModule } from '@nestjs/config';
+import googleOauthConfig from './config/google-oauth.config';
+import { GoogleStrategy } from './strategies/google.strategy';
 
 @Module({
   imports: [
@@ -27,9 +30,18 @@ import { UploadModule } from 'src/upload/upload.module';
     SchoolStaffModule,
     SchoolModule,
     UploadModule,
+    ConfigModule.forFeature(googleOauthConfig)
   ],
   controllers: [AuthController],
-  providers: [AuthService, SchoolStaffService, UploadService, SchoolService, LocalStrategy, JwtStrategy],
+  providers: [
+    AuthService,
+    SchoolStaffService,
+    UploadService,
+    SchoolService,
+    LocalStrategy,
+    JwtStrategy,
+    GoogleStrategy
+  ],
   exports: [AuthService]
 })
 export class AuthModule { }
